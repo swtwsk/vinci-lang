@@ -5,4 +5,4 @@ cradle:
         cradle:
           stack:
             - path: "./app/Main.hs"
-            - path: "./test/Spec.hs"
+            - path: "./test/Test.hs"

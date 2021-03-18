@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: dbd6167fa9aa6e45c2cc25018d21fd47d62b21a47b9d7738fac79f10a3101d71
+-- hash: 0c90743167609395ae24b44b6e3f45ac5ef09ddd0774fb80ba4eb3a604f1ebdd
 
 name:           vinci-lang
 version:        0.1.0.0
@@ -38,6 +38,8 @@ library
   build-depends:
       array
     , base >=4.7 && <5
+    , tasty
+    , tasty-hunit
   default-language: Haskell2010
 
 executable vinci-lang-exe
@@ -50,12 +52,14 @@ executable vinci-lang-exe
   build-depends:
       array
     , base >=4.7 && <5
+    , tasty
+    , tasty-hunit
     , vinci-lang
   default-language: Haskell2010
 
 test-suite vinci-lang-test
   type: exitcode-stdio-1.0
-  main-is: Spec.hs
+  main-is: Test.hs
   other-modules:
       Paths_vinci_lang
   hs-source-dirs:
@@ -64,5 +68,7 @@ test-suite vinci-lang-test
   build-depends:
       array
     , base >=4.7 && <5
+    , tasty
+    , tasty-hunit
     , vinci-lang
   default-language: Haskell2010
