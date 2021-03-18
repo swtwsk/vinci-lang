@@ -1,2 +1,6 @@
 .stack-work/
 *~
+
+*.hi
+*.o
+*.bak

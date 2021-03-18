@@ -1,0 +1,88 @@
+comment "#" ;
+
+token VIdent (lower (letter | digit | '_')*) ;   -- value ident
+token SIdent (upper (letter | digit | '_')*) ;   -- struct ident
+token TPolyIdent ('\'' (lower)+ ) ;                   -- polymorphic type ident
+
+entrypoints Line, Program ;
+Prog.       Program ::= [Phrase] ;
+Line.       Line    ::= Phrase ";;" ;
+Value.      Phrase  ::= LetDef ;                 -- value-definition
+Expression. Phrase  ::= Expr ;                   -- expression
+StructDecl. Phrase  ::= StructDef ;              -- struct declaration
+
+terminator Phrase ";;" ;
+
+Let.        LetDef   ::= "let" [LetBind] ;
+LetRec.     LetDef   ::= "letrec" [LetBind] ;
+ConstBind.  LetBind  ::= LetLVI "=" Expr ;
+ProcBind.   LetBind  ::= ProcName [LetLVI] RType "=" Expr ;
+LetLVI.     LetLVI   ::= LambdaVI ;
+separator nonempty LetLVI "" ;
+separator nonempty LetBind "also" ;
+
+-- Expressions --
+EId.        Expr8    ::= VIdent ;
+EInt.       Expr8    ::= Integer ;
+EFloat.     Expr8    ::= Double ;
+ETrue.      Expr8    ::= "True" ;
+EFalse.     Expr8    ::= "False" ;
+EFieldGet.  Expr8    ::= Expr8 "." VIdent ;
+
+EApp.       Expr7    ::= Expr7 Expr8 ;
+ETyped.     Expr6    ::= "(" Expr ":" Type ")" ;
+
+ENeg.       Expr5    ::= "-" Expr6 ;
+ENot.       Expr5    ::= "not" Expr6 ;
+EMul.       Expr4    ::= Expr4 "*" Expr5 ;
+EDiv.       Expr4    ::= Expr4 "/" Expr5 ;
+EMod.       Expr4    ::= Expr4 "%" Expr5 ;
+EAdd.       Expr3    ::= Expr3 "+" Expr4 ;
+ESub.       Expr3    ::= Expr3 "-" Expr4 ;
+
+ELTH.       Expr2    ::= Expr2 "<" Expr3 ;
+ELE.        Expr2    ::= Expr2 "<=" Expr3 ;
+EGTH.       Expr2    ::= Expr2 ">" Expr3 ;
+EGE.        Expr2    ::= Expr2 ">=" Expr3 ;
+EEQU.       Expr2    ::= Expr2 "==" Expr3 ;
+ENE.        Expr2    ::= Expr2 "!=" Expr3 ;
+EAnd.       Expr1    ::= Expr2 "and" Expr1 ;
+EOr.        Expr     ::= Expr1 "or" Expr ;
+
+ECond.      Expr     ::= "if" Expr "then" Expr "else" Expr ;
+ELetIn.     Expr     ::= LetDef "in" Expr ;
+ELambda.    Expr     ::= "\\" [LambdaVI] "->" Expr ;
+ETuple.     Expr     ::= "(" Expr "," [Expr] ")" ;
+ENamedCons. Expr     ::= SIdent "{" [FieldDef] "}" ;
+ECons.      Expr     ::= "{" [FieldDef] "}" ;
+
+TypedVId.   LambdaVI ::= "(" LambdaVI ":" Type ")" ;
+LambdaVId.  LambdaVI ::= VIdent ;
+WildVId.    LambdaVI ::= "_" ;
+TupleVId.   LambdaVI ::= "(" [LambdaVI] ")" ;
+
+FieldDef.   FieldDef ::= VIdent "=" Expr ;
+
+separator nonempty Expr "," ;
+separator nonempty LambdaVI "," ;
+separator nonempty FieldDef "," ;
+coercions Expr 8 ;
+
+ProcNameId. ProcName ::= VIdent ;
+
+-- Types --
+SDef.       StructDef ::= "struct" SIdent [TPolyIdent] "{" [FieldDecl] "}" ;
+FieldDecl.  FieldDecl ::= VIdent ":" Type ;
+separator nonempty FieldDecl "," ;
+separator TPolyIdent "" ;
+
+TInt.       Type1    ::= "Int" ;
+TFloat.     Type1    ::= "Float" ;
+TBool.      Type1    ::= "Bool" ;
+TStruct.    Type1    ::= SIdent ;
+TPoly.      Type1    ::= TPolyIdent ;
+TFun.       Type     ::= Type1 "->" Type ;
+coercions Type 1 ;
+
+NoRetType.  RType    ::= ;
+RetType.    RType    ::= "->" Type ;
