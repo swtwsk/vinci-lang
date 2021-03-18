@@ -63,6 +63,7 @@ data Expr a
     | ETrue a
     | EFalse a
     | EFieldGet a (Expr a) VIdent
+    | ETuple a (Expr a) [Expr a]
     | EApp a (Expr a) (Expr a)
     | ETyped a (Expr a) (Type a)
     | ENeg a (Expr a)
@@ -83,7 +84,6 @@ data Expr a
     | ECond a (Expr a) (Expr a) (Expr a)
     | ELetIn a (LetDef a) (Expr a)
     | ELambda a [LambdaVI a] (Expr a)
-    | ETuple a (Expr a) [Expr a]
     | ENamedCons a SIdent [FieldDef a]
     | ECons a [FieldDef a]
   deriving (Eq, Ord, Show, Read)
@@ -96,6 +96,7 @@ instance Functor Expr where
         ETrue a -> ETrue (f a)
         EFalse a -> EFalse (f a)
         EFieldGet a expr vident -> EFieldGet (f a) (fmap f expr) vident
+        ETuple a expr exprs -> ETuple (f a) (fmap f expr) (map (fmap f) exprs)
         EApp a expr1 expr2 -> EApp (f a) (fmap f expr1) (fmap f expr2)
         ETyped a expr type_ -> ETyped (f a) (fmap f expr) (fmap f type_)
         ENeg a expr -> ENeg (f a) (fmap f expr)
@@ -116,7 +117,6 @@ instance Functor Expr where
         ECond a expr1 expr2 expr3 -> ECond (f a) (fmap f expr1) (fmap f expr2) (fmap f expr3)
         ELetIn a letdef expr -> ELetIn (f a) (fmap f letdef) (fmap f expr)
         ELambda a lambdavis expr -> ELambda (f a) (map (fmap f) lambdavis) (fmap f expr)
-        ETuple a expr exprs -> ETuple (f a) (fmap f expr) (map (fmap f) exprs)
         ENamedCons a sident fielddefs -> ENamedCons (f a) sident (map (fmap f) fielddefs)
         ECons a fielddefs -> ECons (f a) (map (fmap f) fielddefs)
 data LambdaVI a

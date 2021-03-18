@@ -2,7 +2,7 @@ comment "#" ;
 
 token VIdent (lower (letter | digit | '_')*) ;   -- value ident
 token SIdent (upper (letter | digit | '_')*) ;   -- struct ident
-token TPolyIdent ('\'' (lower)+ ) ;                   -- polymorphic type ident
+token TPolyIdent ('\'' (lower)+ ) ;              -- polymorphic type ident
 
 entrypoints Line, Program ;
 Prog.       Program ::= [Phrase] ;
@@ -28,6 +28,7 @@ EFloat.     Expr8    ::= Double ;
 ETrue.      Expr8    ::= "True" ;
 EFalse.     Expr8    ::= "False" ;
 EFieldGet.  Expr8    ::= Expr8 "." VIdent ;
+ETuple.     Expr8    ::= "(" Expr "," [Expr] ")" ;
 
 EApp.       Expr7    ::= Expr7 Expr8 ;
 ETyped.     Expr6    ::= "(" Expr ":" Type ")" ;
@@ -52,7 +53,6 @@ EOr.        Expr     ::= Expr1 "or" Expr ;
 ECond.      Expr     ::= "if" Expr "then" Expr "else" Expr ;
 ELetIn.     Expr     ::= LetDef "in" Expr ;
 ELambda.    Expr     ::= "\\" [LambdaVI] "->" Expr ;
-ETuple.     Expr     ::= "(" Expr "," [Expr] ")" ;
 ENamedCons. Expr     ::= SIdent "{" [FieldDef] "}" ;
 ECons.      Expr     ::= "{" [FieldDef] "}" ;
 

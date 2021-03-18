@@ -48,6 +48,7 @@ transExpr x = case x of
   ETrue _ -> failure x
   EFalse _ -> failure x
   EFieldGet _ expr vident -> failure x
+  ETuple _ expr exprs -> failure x
   EApp _ expr1 expr2 -> failure x
   ETyped _ expr type_ -> failure x
   ENeg _ expr -> failure x
@@ -68,7 +69,6 @@ transExpr x = case x of
   ECond _ expr1 expr2 expr3 -> failure x
   ELetIn _ letdef expr -> failure x
   ELambda _ lambdavis expr -> failure x
-  ETuple _ expr exprs -> failure x
   ENamedCons _ sident fielddefs -> failure x
   ECons _ fielddefs -> failure x
 transLambdaVI :: Show a => LambdaVI a -> Result

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0c90743167609395ae24b44b6e3f45ac5ef09ddd0774fb80ba4eb3a604f1ebdd
+-- hash: cc4fac36eab646c98bf297445818ca9728d6b405eb3a3e53f7d4ce4ea0f4e0ca
 
 name:           vinci-lang
 version:        0.1.0.0
@@ -31,6 +31,8 @@ library
       AST.ParVinci
       AST.PrintVinci
       AST.SkelVinci
+      Frontend.AST
+      Frontend.TranspileAST
   other-modules:
       Paths_vinci_lang
   hs-source-dirs:
@@ -61,6 +63,7 @@ test-suite vinci-lang-test
   type: exitcode-stdio-1.0
   main-is: Test.hs
   other-modules:
+      ParserTests
       Paths_vinci_lang
   hs-source-dirs:
       test

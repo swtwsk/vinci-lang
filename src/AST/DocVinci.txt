@@ -46,10 +46,10 @@ The reserved words used in Vinci are the following:
 
 The symbols used in Vinci are the following:
   | ;; | = | . | (
-  | : | ) | - | *
-  | / | % | + | <
-  | <= | > | >= | ==
-  | != | \ | -> | ,
+  | , | ) | : | -
+  | * | / | % | +
+  | < | <= | > | >=
+  | == | != | \ | ->
   | { | } | _ | 
 
 ===Comments===
@@ -83,6 +83,7 @@ All other symbols are terminals.
   |  |  **|**  | ``True`` 
   |  |  **|**  | ``False`` 
   |  |  **|**  | //Expr8// ``.`` //VIdent// 
+  |  |  **|**  | ``(`` //Expr// ``,`` //[Expr]// ``)`` 
   |  |  **|**  | ``(`` //Expr// ``)`` 
   | //Expr7// | -> | //Expr7// //Expr8// 
   |  |  **|**  | //Expr8// 
@@ -111,7 +112,6 @@ All other symbols are terminals.
   |  |  **|**  | ``if`` //Expr// ``then`` //Expr// ``else`` //Expr// 
   |  |  **|**  | //LetDef// ``in`` //Expr// 
   |  |  **|**  | ``\`` //[LambdaVI]// ``->`` //Expr// 
-  |  |  **|**  | ``(`` //Expr// ``,`` //[Expr]// ``)`` 
   |  |  **|**  | //SIdent// ``{`` //[FieldDef]// ``}`` 
   |  |  **|**  | ``{`` //[FieldDef]// ``}`` 
   |  |  **|**  | //Expr1// 
