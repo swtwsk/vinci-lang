@@ -1,8 +1,3 @@
 cradle:
-  multi:
-    - path: "./"
-      config:
-        cradle:
-          stack:
-            - path: "./app/Main.hs"
-            - path: "./test/Test.hs"
+  stack:
+    stackYaml: "./stack.yaml"
