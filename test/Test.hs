@@ -1,8 +1,8 @@
 import Test.Tasty
-import Test.Tasty.HUnit
 
 import qualified ParserTests
 
+main :: IO ()
 main = defaultMain tests
 
 tests :: TestTree

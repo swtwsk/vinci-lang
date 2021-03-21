@@ -4,10 +4,10 @@
 {-# OPTIONS_GHC -XPartialTypeSignatures #-}
 #endif
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns -fno-warn-overlapping-patterns #-}
-module AST.ParVinci where
-import AST.AbsVinci
-import AST.LexVinci
-import AST.ErrM
+module Parser.ParVinci where
+import Parser.AbsVinci
+import Parser.LexVinci
+import Parser.ErrM
 import qualified Data.Array as Happy_Data_Array
 import qualified Data.Bits as Bits
 import qualified GHC.Exts as Happy_GHC_Exts
@@ -448,7 +448,7 @@ happyReduce_7 = happySpecReduce_1  5# happyReduction_7
 happyReduction_7 happy_x_1
 	 =  case happyOut13 happy_x_1 of { (HappyWrap13 happy_var_1) -> 
 	happyIn10
-		 (AST.AbsVinci.Prog () (reverse happy_var_1)
+		 (Parser.AbsVinci.Prog () (reverse happy_var_1)
 	)}
 
 happyReduce_8 = happySpecReduce_2  6# happyReduction_8
@@ -456,28 +456,28 @@ happyReduction_8 happy_x_2
 	happy_x_1
 	 =  case happyOut12 happy_x_1 of { (HappyWrap12 happy_var_1) -> 
 	happyIn11
-		 (AST.AbsVinci.Line () happy_var_1
+		 (Parser.AbsVinci.Line () happy_var_1
 	)}
 
 happyReduce_9 = happySpecReduce_1  7# happyReduction_9
 happyReduction_9 happy_x_1
 	 =  case happyOut14 happy_x_1 of { (HappyWrap14 happy_var_1) -> 
 	happyIn12
-		 (AST.AbsVinci.Value () happy_var_1
+		 (Parser.AbsVinci.Value () happy_var_1
 	)}
 
 happyReduce_10 = happySpecReduce_1  7# happyReduction_10
 happyReduction_10 happy_x_1
 	 =  case happyOut27 happy_x_1 of { (HappyWrap27 happy_var_1) -> 
 	happyIn12
-		 (AST.AbsVinci.Expression () happy_var_1
+		 (Parser.AbsVinci.Expression () happy_var_1
 	)}
 
 happyReduce_11 = happySpecReduce_1  7# happyReduction_11
 happyReduction_11 happy_x_1
 	 =  case happyOut34 happy_x_1 of { (HappyWrap34 happy_var_1) -> 
 	happyIn12
-		 (AST.AbsVinci.StructDecl () happy_var_1
+		 (Parser.AbsVinci.StructDecl () happy_var_1
 	)}
 
 happyReduce_12 = happySpecReduce_0  8# happyReduction_12
@@ -500,7 +500,7 @@ happyReduction_14 happy_x_2
 	happy_x_1
 	 =  case happyOut18 happy_x_2 of { (HappyWrap18 happy_var_2) -> 
 	happyIn14
-		 (AST.AbsVinci.Let () happy_var_2
+		 (Parser.AbsVinci.Let () happy_var_2
 	)}
 
 happyReduce_15 = happySpecReduce_2  9# happyReduction_15
@@ -508,7 +508,7 @@ happyReduction_15 happy_x_2
 	happy_x_1
 	 =  case happyOut18 happy_x_2 of { (HappyWrap18 happy_var_2) -> 
 	happyIn14
-		 (AST.AbsVinci.LetRec () happy_var_2
+		 (Parser.AbsVinci.LetRec () happy_var_2
 	)}
 
 happyReduce_16 = happySpecReduce_3  10# happyReduction_16
@@ -518,7 +518,7 @@ happyReduction_16 happy_x_3
 	 =  case happyOut16 happy_x_1 of { (HappyWrap16 happy_var_1) -> 
 	case happyOut27 happy_x_3 of { (HappyWrap27 happy_var_3) -> 
 	happyIn15
-		 (AST.AbsVinci.ConstBind () happy_var_1 happy_var_3
+		 (Parser.AbsVinci.ConstBind () happy_var_1 happy_var_3
 	)}}
 
 happyReduce_17 = happyReduce 5# 10# happyReduction_17
@@ -533,14 +533,14 @@ happyReduction_17 (happy_x_5 `HappyStk`
 	case happyOut40 happy_x_3 of { (HappyWrap40 happy_var_3) -> 
 	case happyOut27 happy_x_5 of { (HappyWrap27 happy_var_5) -> 
 	happyIn15
-		 (AST.AbsVinci.ProcBind () happy_var_1 happy_var_2 happy_var_3 happy_var_5
+		 (Parser.AbsVinci.ProcBind () happy_var_1 happy_var_2 happy_var_3 happy_var_5
 	) `HappyStk` happyRest}}}}
 
 happyReduce_18 = happySpecReduce_1  11# happyReduction_18
 happyReduction_18 happy_x_1
 	 =  case happyOut28 happy_x_1 of { (HappyWrap28 happy_var_1) -> 
 	happyIn16
-		 (AST.AbsVinci.LetLVI () happy_var_1
+		 (Parser.AbsVinci.LetLVI () happy_var_1
 	)}
 
 happyReduce_19 = happySpecReduce_1  12# happyReduction_19
@@ -580,33 +580,33 @@ happyReduce_23 = happySpecReduce_1  14# happyReduction_23
 happyReduction_23 happy_x_1
 	 =  case happyOut7 happy_x_1 of { (HappyWrap7 happy_var_1) -> 
 	happyIn19
-		 (AST.AbsVinci.EId () happy_var_1
+		 (Parser.AbsVinci.EId () happy_var_1
 	)}
 
 happyReduce_24 = happySpecReduce_1  14# happyReduction_24
 happyReduction_24 happy_x_1
 	 =  case happyOut5 happy_x_1 of { (HappyWrap5 happy_var_1) -> 
 	happyIn19
-		 (AST.AbsVinci.EInt () happy_var_1
+		 (Parser.AbsVinci.EInt () happy_var_1
 	)}
 
 happyReduce_25 = happySpecReduce_1  14# happyReduction_25
 happyReduction_25 happy_x_1
 	 =  case happyOut6 happy_x_1 of { (HappyWrap6 happy_var_1) -> 
 	happyIn19
-		 (AST.AbsVinci.EFloat () happy_var_1
+		 (Parser.AbsVinci.EFloat () happy_var_1
 	)}
 
 happyReduce_26 = happySpecReduce_1  14# happyReduction_26
 happyReduction_26 happy_x_1
 	 =  happyIn19
-		 (AST.AbsVinci.ETrue ()
+		 (Parser.AbsVinci.ETrue ()
 	)
 
 happyReduce_27 = happySpecReduce_1  14# happyReduction_27
 happyReduction_27 happy_x_1
 	 =  happyIn19
-		 (AST.AbsVinci.EFalse ()
+		 (Parser.AbsVinci.EFalse ()
 	)
 
 happyReduce_28 = happySpecReduce_3  14# happyReduction_28
@@ -616,7 +616,7 @@ happyReduction_28 happy_x_3
 	 =  case happyOut19 happy_x_1 of { (HappyWrap19 happy_var_1) -> 
 	case happyOut7 happy_x_3 of { (HappyWrap7 happy_var_3) -> 
 	happyIn19
-		 (AST.AbsVinci.EFieldGet () happy_var_1 happy_var_3
+		 (Parser.AbsVinci.EFieldGet () happy_var_1 happy_var_3
 	)}}
 
 happyReduce_29 = happyReduce 5# 14# happyReduction_29
@@ -629,7 +629,7 @@ happyReduction_29 (happy_x_5 `HappyStk`
 	 = case happyOut27 happy_x_2 of { (HappyWrap27 happy_var_2) -> 
 	case happyOut30 happy_x_4 of { (HappyWrap30 happy_var_4) -> 
 	happyIn19
-		 (AST.AbsVinci.ETuple () happy_var_2 happy_var_4
+		 (Parser.AbsVinci.ETuple () happy_var_2 happy_var_4
 	) `HappyStk` happyRest}}
 
 happyReduce_30 = happySpecReduce_3  14# happyReduction_30
@@ -647,7 +647,7 @@ happyReduction_31 happy_x_2
 	 =  case happyOut20 happy_x_1 of { (HappyWrap20 happy_var_1) -> 
 	case happyOut19 happy_x_2 of { (HappyWrap19 happy_var_2) -> 
 	happyIn20
-		 (AST.AbsVinci.EApp () happy_var_1 happy_var_2
+		 (Parser.AbsVinci.EApp () happy_var_1 happy_var_2
 	)}}
 
 happyReduce_32 = happySpecReduce_1  15# happyReduction_32
@@ -667,7 +667,7 @@ happyReduction_33 (happy_x_5 `HappyStk`
 	 = case happyOut27 happy_x_2 of { (HappyWrap27 happy_var_2) -> 
 	case happyOut39 happy_x_4 of { (HappyWrap39 happy_var_4) -> 
 	happyIn21
-		 (AST.AbsVinci.ETyped () happy_var_2 happy_var_4
+		 (Parser.AbsVinci.ETyped () happy_var_2 happy_var_4
 	) `HappyStk` happyRest}}
 
 happyReduce_34 = happySpecReduce_1  16# happyReduction_34
@@ -682,7 +682,7 @@ happyReduction_35 happy_x_2
 	happy_x_1
 	 =  case happyOut21 happy_x_2 of { (HappyWrap21 happy_var_2) -> 
 	happyIn22
-		 (AST.AbsVinci.ENeg () happy_var_2
+		 (Parser.AbsVinci.ENeg () happy_var_2
 	)}
 
 happyReduce_36 = happySpecReduce_2  17# happyReduction_36
@@ -690,7 +690,7 @@ happyReduction_36 happy_x_2
 	happy_x_1
 	 =  case happyOut21 happy_x_2 of { (HappyWrap21 happy_var_2) -> 
 	happyIn22
-		 (AST.AbsVinci.ENot () happy_var_2
+		 (Parser.AbsVinci.ENot () happy_var_2
 	)}
 
 happyReduce_37 = happySpecReduce_1  17# happyReduction_37
@@ -707,7 +707,7 @@ happyReduction_38 happy_x_3
 	 =  case happyOut23 happy_x_1 of { (HappyWrap23 happy_var_1) -> 
 	case happyOut22 happy_x_3 of { (HappyWrap22 happy_var_3) -> 
 	happyIn23
-		 (AST.AbsVinci.EMul () happy_var_1 happy_var_3
+		 (Parser.AbsVinci.EMul () happy_var_1 happy_var_3
 	)}}
 
 happyReduce_39 = happySpecReduce_3  18# happyReduction_39
@@ -717,7 +717,7 @@ happyReduction_39 happy_x_3
 	 =  case happyOut23 happy_x_1 of { (HappyWrap23 happy_var_1) -> 
 	case happyOut22 happy_x_3 of { (HappyWrap22 happy_var_3) -> 
 	happyIn23
-		 (AST.AbsVinci.EDiv () happy_var_1 happy_var_3
+		 (Parser.AbsVinci.EDiv () happy_var_1 happy_var_3
 	)}}
 
 happyReduce_40 = happySpecReduce_3  18# happyReduction_40
@@ -727,7 +727,7 @@ happyReduction_40 happy_x_3
 	 =  case happyOut23 happy_x_1 of { (HappyWrap23 happy_var_1) -> 
 	case happyOut22 happy_x_3 of { (HappyWrap22 happy_var_3) -> 
 	happyIn23
-		 (AST.AbsVinci.EMod () happy_var_1 happy_var_3
+		 (Parser.AbsVinci.EMod () happy_var_1 happy_var_3
 	)}}
 
 happyReduce_41 = happySpecReduce_1  18# happyReduction_41
@@ -744,7 +744,7 @@ happyReduction_42 happy_x_3
 	 =  case happyOut24 happy_x_1 of { (HappyWrap24 happy_var_1) -> 
 	case happyOut23 happy_x_3 of { (HappyWrap23 happy_var_3) -> 
 	happyIn24
-		 (AST.AbsVinci.EAdd () happy_var_1 happy_var_3
+		 (Parser.AbsVinci.EAdd () happy_var_1 happy_var_3
 	)}}
 
 happyReduce_43 = happySpecReduce_3  19# happyReduction_43
@@ -754,7 +754,7 @@ happyReduction_43 happy_x_3
 	 =  case happyOut24 happy_x_1 of { (HappyWrap24 happy_var_1) -> 
 	case happyOut23 happy_x_3 of { (HappyWrap23 happy_var_3) -> 
 	happyIn24
-		 (AST.AbsVinci.ESub () happy_var_1 happy_var_3
+		 (Parser.AbsVinci.ESub () happy_var_1 happy_var_3
 	)}}
 
 happyReduce_44 = happySpecReduce_1  19# happyReduction_44
@@ -771,7 +771,7 @@ happyReduction_45 happy_x_3
 	 =  case happyOut25 happy_x_1 of { (HappyWrap25 happy_var_1) -> 
 	case happyOut24 happy_x_3 of { (HappyWrap24 happy_var_3) -> 
 	happyIn25
-		 (AST.AbsVinci.ELTH () happy_var_1 happy_var_3
+		 (Parser.AbsVinci.ELTH () happy_var_1 happy_var_3
 	)}}
 
 happyReduce_46 = happySpecReduce_3  20# happyReduction_46
@@ -781,7 +781,7 @@ happyReduction_46 happy_x_3
 	 =  case happyOut25 happy_x_1 of { (HappyWrap25 happy_var_1) -> 
 	case happyOut24 happy_x_3 of { (HappyWrap24 happy_var_3) -> 
 	happyIn25
-		 (AST.AbsVinci.ELE () happy_var_1 happy_var_3
+		 (Parser.AbsVinci.ELE () happy_var_1 happy_var_3
 	)}}
 
 happyReduce_47 = happySpecReduce_3  20# happyReduction_47
@@ -791,7 +791,7 @@ happyReduction_47 happy_x_3
 	 =  case happyOut25 happy_x_1 of { (HappyWrap25 happy_var_1) -> 
 	case happyOut24 happy_x_3 of { (HappyWrap24 happy_var_3) -> 
 	happyIn25
-		 (AST.AbsVinci.EGTH () happy_var_1 happy_var_3
+		 (Parser.AbsVinci.EGTH () happy_var_1 happy_var_3
 	)}}
 
 happyReduce_48 = happySpecReduce_3  20# happyReduction_48
@@ -801,7 +801,7 @@ happyReduction_48 happy_x_3
 	 =  case happyOut25 happy_x_1 of { (HappyWrap25 happy_var_1) -> 
 	case happyOut24 happy_x_3 of { (HappyWrap24 happy_var_3) -> 
 	happyIn25
-		 (AST.AbsVinci.EGE () happy_var_1 happy_var_3
+		 (Parser.AbsVinci.EGE () happy_var_1 happy_var_3
 	)}}
 
 happyReduce_49 = happySpecReduce_3  20# happyReduction_49
@@ -811,7 +811,7 @@ happyReduction_49 happy_x_3
 	 =  case happyOut25 happy_x_1 of { (HappyWrap25 happy_var_1) -> 
 	case happyOut24 happy_x_3 of { (HappyWrap24 happy_var_3) -> 
 	happyIn25
-		 (AST.AbsVinci.EEQU () happy_var_1 happy_var_3
+		 (Parser.AbsVinci.EEQU () happy_var_1 happy_var_3
 	)}}
 
 happyReduce_50 = happySpecReduce_3  20# happyReduction_50
@@ -821,7 +821,7 @@ happyReduction_50 happy_x_3
 	 =  case happyOut25 happy_x_1 of { (HappyWrap25 happy_var_1) -> 
 	case happyOut24 happy_x_3 of { (HappyWrap24 happy_var_3) -> 
 	happyIn25
-		 (AST.AbsVinci.ENE () happy_var_1 happy_var_3
+		 (Parser.AbsVinci.ENE () happy_var_1 happy_var_3
 	)}}
 
 happyReduce_51 = happySpecReduce_1  20# happyReduction_51
@@ -838,7 +838,7 @@ happyReduction_52 happy_x_3
 	 =  case happyOut25 happy_x_1 of { (HappyWrap25 happy_var_1) -> 
 	case happyOut26 happy_x_3 of { (HappyWrap26 happy_var_3) -> 
 	happyIn26
-		 (AST.AbsVinci.EAnd () happy_var_1 happy_var_3
+		 (Parser.AbsVinci.EAnd () happy_var_1 happy_var_3
 	)}}
 
 happyReduce_53 = happySpecReduce_1  21# happyReduction_53
@@ -855,7 +855,7 @@ happyReduction_54 happy_x_3
 	 =  case happyOut26 happy_x_1 of { (HappyWrap26 happy_var_1) -> 
 	case happyOut27 happy_x_3 of { (HappyWrap27 happy_var_3) -> 
 	happyIn27
-		 (AST.AbsVinci.EOr () happy_var_1 happy_var_3
+		 (Parser.AbsVinci.EOr () happy_var_1 happy_var_3
 	)}}
 
 happyReduce_55 = happyReduce 6# 22# happyReduction_55
@@ -870,7 +870,7 @@ happyReduction_55 (happy_x_6 `HappyStk`
 	case happyOut27 happy_x_4 of { (HappyWrap27 happy_var_4) -> 
 	case happyOut27 happy_x_6 of { (HappyWrap27 happy_var_6) -> 
 	happyIn27
-		 (AST.AbsVinci.ECond () happy_var_2 happy_var_4 happy_var_6
+		 (Parser.AbsVinci.ECond () happy_var_2 happy_var_4 happy_var_6
 	) `HappyStk` happyRest}}}
 
 happyReduce_56 = happySpecReduce_3  22# happyReduction_56
@@ -880,7 +880,7 @@ happyReduction_56 happy_x_3
 	 =  case happyOut14 happy_x_1 of { (HappyWrap14 happy_var_1) -> 
 	case happyOut27 happy_x_3 of { (HappyWrap27 happy_var_3) -> 
 	happyIn27
-		 (AST.AbsVinci.ELetIn () happy_var_1 happy_var_3
+		 (Parser.AbsVinci.ELetIn () happy_var_1 happy_var_3
 	)}}
 
 happyReduce_57 = happyReduce 4# 22# happyReduction_57
@@ -892,7 +892,7 @@ happyReduction_57 (happy_x_4 `HappyStk`
 	 = case happyOut31 happy_x_2 of { (HappyWrap31 happy_var_2) -> 
 	case happyOut27 happy_x_4 of { (HappyWrap27 happy_var_4) -> 
 	happyIn27
-		 (AST.AbsVinci.ELambda () happy_var_2 happy_var_4
+		 (Parser.AbsVinci.ELambda () happy_var_2 happy_var_4
 	) `HappyStk` happyRest}}
 
 happyReduce_58 = happyReduce 4# 22# happyReduction_58
@@ -904,7 +904,7 @@ happyReduction_58 (happy_x_4 `HappyStk`
 	 = case happyOut8 happy_x_1 of { (HappyWrap8 happy_var_1) -> 
 	case happyOut32 happy_x_3 of { (HappyWrap32 happy_var_3) -> 
 	happyIn27
-		 (AST.AbsVinci.ENamedCons () happy_var_1 happy_var_3
+		 (Parser.AbsVinci.ENamedCons () happy_var_1 happy_var_3
 	) `HappyStk` happyRest}}
 
 happyReduce_59 = happySpecReduce_3  22# happyReduction_59
@@ -913,7 +913,7 @@ happyReduction_59 happy_x_3
 	happy_x_1
 	 =  case happyOut32 happy_x_2 of { (HappyWrap32 happy_var_2) -> 
 	happyIn27
-		 (AST.AbsVinci.ECons () happy_var_2
+		 (Parser.AbsVinci.ECons () happy_var_2
 	)}
 
 happyReduce_60 = happySpecReduce_1  22# happyReduction_60
@@ -933,20 +933,20 @@ happyReduction_61 (happy_x_5 `HappyStk`
 	 = case happyOut28 happy_x_2 of { (HappyWrap28 happy_var_2) -> 
 	case happyOut39 happy_x_4 of { (HappyWrap39 happy_var_4) -> 
 	happyIn28
-		 (AST.AbsVinci.TypedVId () happy_var_2 happy_var_4
+		 (Parser.AbsVinci.TypedVId () happy_var_2 happy_var_4
 	) `HappyStk` happyRest}}
 
 happyReduce_62 = happySpecReduce_1  23# happyReduction_62
 happyReduction_62 happy_x_1
 	 =  case happyOut7 happy_x_1 of { (HappyWrap7 happy_var_1) -> 
 	happyIn28
-		 (AST.AbsVinci.LambdaVId () happy_var_1
+		 (Parser.AbsVinci.LambdaVId () happy_var_1
 	)}
 
 happyReduce_63 = happySpecReduce_1  23# happyReduction_63
 happyReduction_63 happy_x_1
 	 =  happyIn28
-		 (AST.AbsVinci.WildVId ()
+		 (Parser.AbsVinci.WildVId ()
 	)
 
 happyReduce_64 = happySpecReduce_3  23# happyReduction_64
@@ -955,7 +955,7 @@ happyReduction_64 happy_x_3
 	happy_x_1
 	 =  case happyOut31 happy_x_2 of { (HappyWrap31 happy_var_2) -> 
 	happyIn28
-		 (AST.AbsVinci.TupleVId () happy_var_2
+		 (Parser.AbsVinci.TupleVId () happy_var_2
 	)}
 
 happyReduce_65 = happySpecReduce_3  24# happyReduction_65
@@ -965,7 +965,7 @@ happyReduction_65 happy_x_3
 	 =  case happyOut7 happy_x_1 of { (HappyWrap7 happy_var_1) -> 
 	case happyOut27 happy_x_3 of { (HappyWrap27 happy_var_3) -> 
 	happyIn29
-		 (AST.AbsVinci.FieldDef () happy_var_1 happy_var_3
+		 (Parser.AbsVinci.FieldDef () happy_var_1 happy_var_3
 	)}}
 
 happyReduce_66 = happySpecReduce_1  25# happyReduction_66
@@ -1023,7 +1023,7 @@ happyReduce_72 = happySpecReduce_1  28# happyReduction_72
 happyReduction_72 happy_x_1
 	 =  case happyOut7 happy_x_1 of { (HappyWrap7 happy_var_1) -> 
 	happyIn33
-		 (AST.AbsVinci.ProcNameId () happy_var_1
+		 (Parser.AbsVinci.ProcNameId () happy_var_1
 	)}
 
 happyReduce_73 = happyReduce 6# 29# happyReduction_73
@@ -1038,7 +1038,7 @@ happyReduction_73 (happy_x_6 `HappyStk`
 	case happyOut37 happy_x_3 of { (HappyWrap37 happy_var_3) -> 
 	case happyOut36 happy_x_5 of { (HappyWrap36 happy_var_5) -> 
 	happyIn34
-		 (AST.AbsVinci.SDef () happy_var_2 happy_var_3 happy_var_5
+		 (Parser.AbsVinci.SDef () happy_var_2 happy_var_3 happy_var_5
 	) `HappyStk` happyRest}}}
 
 happyReduce_74 = happySpecReduce_3  30# happyReduction_74
@@ -1048,7 +1048,7 @@ happyReduction_74 happy_x_3
 	 =  case happyOut7 happy_x_1 of { (HappyWrap7 happy_var_1) -> 
 	case happyOut39 happy_x_3 of { (HappyWrap39 happy_var_3) -> 
 	happyIn35
-		 (AST.AbsVinci.FieldDecl () happy_var_1 happy_var_3
+		 (Parser.AbsVinci.FieldDecl () happy_var_1 happy_var_3
 	)}}
 
 happyReduce_75 = happySpecReduce_1  31# happyReduction_75
@@ -1085,33 +1085,33 @@ happyReduction_78 happy_x_2
 happyReduce_79 = happySpecReduce_1  33# happyReduction_79
 happyReduction_79 happy_x_1
 	 =  happyIn38
-		 (AST.AbsVinci.TInt ()
+		 (Parser.AbsVinci.TInt ()
 	)
 
 happyReduce_80 = happySpecReduce_1  33# happyReduction_80
 happyReduction_80 happy_x_1
 	 =  happyIn38
-		 (AST.AbsVinci.TFloat ()
+		 (Parser.AbsVinci.TFloat ()
 	)
 
 happyReduce_81 = happySpecReduce_1  33# happyReduction_81
 happyReduction_81 happy_x_1
 	 =  happyIn38
-		 (AST.AbsVinci.TBool ()
+		 (Parser.AbsVinci.TBool ()
 	)
 
 happyReduce_82 = happySpecReduce_1  33# happyReduction_82
 happyReduction_82 happy_x_1
 	 =  case happyOut8 happy_x_1 of { (HappyWrap8 happy_var_1) -> 
 	happyIn38
-		 (AST.AbsVinci.TStruct () happy_var_1
+		 (Parser.AbsVinci.TStruct () happy_var_1
 	)}
 
 happyReduce_83 = happySpecReduce_1  33# happyReduction_83
 happyReduction_83 happy_x_1
 	 =  case happyOut9 happy_x_1 of { (HappyWrap9 happy_var_1) -> 
 	happyIn38
-		 (AST.AbsVinci.TPoly () happy_var_1
+		 (Parser.AbsVinci.TPoly () happy_var_1
 	)}
 
 happyReduce_84 = happySpecReduce_3  33# happyReduction_84
@@ -1130,7 +1130,7 @@ happyReduction_85 happy_x_3
 	 =  case happyOut38 happy_x_1 of { (HappyWrap38 happy_var_1) -> 
 	case happyOut39 happy_x_3 of { (HappyWrap39 happy_var_3) -> 
 	happyIn39
-		 (AST.AbsVinci.TFun () happy_var_1 happy_var_3
+		 (Parser.AbsVinci.TFun () happy_var_1 happy_var_3
 	)}}
 
 happyReduce_86 = happySpecReduce_1  34# happyReduction_86
@@ -1142,7 +1142,7 @@ happyReduction_86 happy_x_1
 
 happyReduce_87 = happySpecReduce_0  35# happyReduction_87
 happyReduction_87  =  happyIn40
-		 (AST.AbsVinci.NoRetType ()
+		 (Parser.AbsVinci.NoRetType ()
 	)
 
 happyReduce_88 = happySpecReduce_2  35# happyReduction_88
@@ -1150,7 +1150,7 @@ happyReduction_88 happy_x_2
 	happy_x_1
 	 =  case happyOut39 happy_x_2 of { (HappyWrap39 happy_var_2) -> 
 	happyIn40
-		 (AST.AbsVinci.RetType () happy_var_2
+		 (Parser.AbsVinci.RetType () happy_var_2
 	)}
 
 happyNewToken action sts stk [] =

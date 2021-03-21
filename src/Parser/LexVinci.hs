@@ -1,10 +1,10 @@
 {-# OPTIONS_GHC -fno-warn-unused-binds -fno-warn-missing-signatures #-}
 {-# LANGUAGE CPP,MagicHash #-}
-{-# LINE 3 "AST/LexVinci.x" #-}
+{-# LINE 3 "Parser/LexVinci.x" #-}
 
 {-# OPTIONS -fno-warn-incomplete-patterns #-}
 {-# OPTIONS_GHC -w #-}
-module AST.LexVinci where
+module Parser.LexVinci where
 
 
 
@@ -95,7 +95,7 @@ alex_actions = array (0 :: Int, 10)
   , (0,alex_action_8)
   ]
 
-{-# LINE 41 "AST/LexVinci.x" #-}
+{-# LINE 41 "Parser/LexVinci.x" #-}
 
 
 tok :: (Posn -> String -> Token) -> (Posn -> String -> Token)

@@ -5,7 +5,7 @@ module Frontend.TranspileAST (
 ) where
 
 import Frontend.AST
-import qualified AST.AbsVinci as Abs
+import qualified Parser.AbsVinci as Abs
 
 class Transpilable a b where
     transpile :: a -> b

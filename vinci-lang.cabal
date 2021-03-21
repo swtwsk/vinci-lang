@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: cc4fac36eab646c98bf297445818ca9728d6b405eb3a3e53f7d4ce4ea0f4e0ca
+-- hash: 29b15961b6d3e6134a65e3ad2e2e81a090a8a3482079299ae57ebea3d5fb0d1c
 
 name:           vinci-lang
 version:        0.1.0.0
@@ -25,18 +25,18 @@ source-repository head
 
 library
   exposed-modules:
-      AST.AbsVinci
-      AST.ErrM
-      AST.LexVinci
-      AST.ParVinci
-      AST.PrintVinci
-      AST.SkelVinci
       Frontend.AST
       Frontend.TranspileAST
+      Parser.AbsVinci
+      Parser.ErrM
+      Parser.LexVinci
+      Parser.ParVinci
+      Parser.PrintVinci
   other-modules:
       Paths_vinci_lang
   hs-source-dirs:
       src
+  ghc-options: -Wall -Werror
   build-depends:
       array
     , base >=4.7 && <5
@@ -50,7 +50,7 @@ executable vinci-lang-exe
       Paths_vinci_lang
   hs-source-dirs:
       app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -Werror
   build-depends:
       array
     , base >=4.7 && <5
@@ -67,7 +67,7 @@ test-suite vinci-lang-test
       Paths_vinci_lang
   hs-source-dirs:
       test
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -Werror
   build-depends:
       array
     , base >=4.7 && <5

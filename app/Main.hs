@@ -2,18 +2,17 @@
 module Main where
 
 import Control.Monad ( when )
-import System.IO ( stdin, hGetContents )
-import System.Environment ( getArgs, getProgName )
+import System.Environment ( getArgs )
 import System.Exit ( exitFailure, exitSuccess )
 
-import AST.LexVinci ( Token )
-import AST.ParVinci ( pLine, myLexer )
-import AST.PrintVinci ( Print, printTree )
-
-import AST.ErrM ( Err(..) )
+import Parser.LexVinci ( Token )
+import Parser.ParVinci ( pLine, myLexer )
+import Parser.PrintVinci ( Print, printTree )
+import Parser.ErrM ( Err(..) )
 
 type ParseFun a = [Token] -> Err a
 
+myLLexer :: String -> [Token]
 myLLexer = myLexer
 
 type Verbosity = Int
@@ -26,7 +25,7 @@ runFile v p f = putStrLn f >> readFile f >>= run v p
 
 run :: (Print a, Show a) => Verbosity -> ParseFun a -> String -> IO ()
 run v p s = case p ts of
-    Bad s -> do 
+    Bad _ -> do 
         putStrLn "\nParse              Failed...\n"
         putStrV v "Tokens:"
         putStrV v $ show ts

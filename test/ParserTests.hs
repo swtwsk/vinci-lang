@@ -3,9 +3,9 @@ module ParserTests (tests) where
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import qualified AST.AbsVinci as Abs
-import AST.ErrM (Err(..))
-import AST.ParVinci (pLine, myLexer, pProgram)
+import qualified Parser.AbsVinci as Abs
+import Parser.ErrM (Err(..))
+import Parser.ParVinci (pLine, myLexer, pProgram)
 
 import Frontend.AST
 import Frontend.TranspileAST (transpile)
@@ -13,6 +13,7 @@ import Frontend.TranspileAST (transpile)
 tests :: TestTree
 tests = testGroup "Parser tests" [ arithmeticTests, conditionalTests, functionTests, tupleTests, structTests, programTests ]
 
+arithmeticTests :: TestTree
 arithmeticTests = testGroup "Arithmetics"
     [ testCase "Addition" $ assertLine addLine addAbsLine
     , testCase "Transpiled addition" $ assertTranspiledLine addLine addASTLine
@@ -46,6 +47,7 @@ arithmeticTests = testGroup "Arithmetics"
         greaterThanAbsLine = Abs.Line () (Abs.Expression () (Abs.EGTH () (Abs.EId () (Abs.VIdent "x")) (Abs.ENeg () (Abs.EInt () 5))))
         greaterThanASTLine = Line (Expression (EGTH (EId "x") (ENeg (EInt 5))))
 
+conditionalTests :: TestTree
 conditionalTests = testGroup "Conditional"
     [ testCase "if-then-else" $ assertLine ifLine ifAbsLine
     , testCase "Transpiled if-then-else" $ assertTranspiledLine ifLine ifASTLine
@@ -61,6 +63,7 @@ conditionalTests = testGroup "Conditional"
         andOrAbsLine = Abs.Line () (Abs.Expression () (Abs.EOr () (Abs.ELE () (Abs.EId () (Abs.VIdent "x")) (Abs.EInt () 3)) (Abs.EAnd () (Abs.EGE () (Abs.EId () (Abs.VIdent "x")) (Abs.EInt () 5)) (Abs.ENE () (Abs.EId () (Abs.VIdent "x")) (Abs.EInt () 6)))))
         andOrASTLine = Line (Expression (EOr (ELE (EId "x") (EInt 3)) (EAnd (EGE (EId "x") (EInt 5)) (ENE (EId "x") (EInt 6)))))
 
+functionTests :: TestTree
 functionTests = testGroup "Function"
     [ testCase "letrec" $ assertLine recLine recAbsLine
     , testCase "Traspiled letrec" $ assertTranspiledLine recLine recASTLine
@@ -74,6 +77,7 @@ functionTests = testGroup "Function"
         typedLambdaAbsLine = Abs.Line () (Abs.Expression () (Abs.ETyped () (Abs.ELambda () [Abs.LambdaVId () (Abs.VIdent "x"), Abs.LambdaVId () (Abs.VIdent "y")] (Abs.EId () (Abs.VIdent "x"))) (Abs.TFun () (Abs.TPoly () (Abs.TPolyIdent "\'a")) (Abs.TFun () (Abs.TPoly () (Abs.TPolyIdent "\'b")) (Abs.TPoly () (Abs.TPolyIdent "\'a"))))))
         typedLambdaASTLine = Line (Expression (ETyped (ELambda [LambdaVId "x", LambdaVId "y"] (EId "x")) (TFun (TPoly "\'a") (TFun (TPoly "\'b") (TPoly "\'a")))))
 
+tupleTests :: TestTree
 tupleTests = testGroup "Tuple"
     [ testCase "Tuple Expr" $ assertLine exprLine exprAbsLine 
     , testCase "Transpiled Tuple Expr" $ assertTranspiledLine exprLine exprASTLine 
@@ -94,6 +98,7 @@ tupleTests = testGroup "Tuple"
         wildcardAbsLine = Abs.Line () (Abs.Value () (Abs.Let () [Abs.ConstBind () (Abs.LetLVI () (Abs.TupleVId () [Abs.WildVId (), Abs.LambdaVId () (Abs.VIdent "y")])) (Abs.EApp () (Abs.EId () (Abs.VIdent "f")) (Abs.ETuple () (Abs.EFloat () 0.1) [Abs.EFloat () 0.2, Abs.EFloat () 0.3]))]))
         wildcardASTLine = Line (Value (Let [ConstBind (TupleVId [WildVId, LambdaVId "y"]) (EApp (EId "f") (ETuple [EFloat 0.1, EFloat 0.2, EFloat 0.3]))]))
 
+structTests :: TestTree
 structTests = testGroup "Struct"
     [ testCase "Struct declaration" $ assertLine declareLine declareAbsLine
     , testCase "Transpiled Struct declaration" $ assertTranspiledLine declareLine declareASTLine 
@@ -117,6 +122,7 @@ structTests = testGroup "Struct"
         fieldGetAbsLine = Abs.Line () (Abs.Expression () (Abs.EFieldGet () (Abs.EId () (Abs.VIdent "outs")) (Abs.VIdent "x")))
         fieldGetASTLine = Line (Expression (EFieldGet (EId "outs") "x"))
 
+programTests :: TestTree
 programTests = testGroup "Program" 
     [ testCase "Program" $ assertProgram program programAbs
     , testCase "Transpiled program" $ assertTranspiledProgram program programAST ]
