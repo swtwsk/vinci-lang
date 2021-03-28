@@ -13,6 +13,7 @@ type RecDependentMap = Map.Map String Bool
 type TranslateM = ReaderT RecDependentMap (VarSupply (String, String))
 
 type CCont = String -> TranslateM CPS.CExpr
+type CVar  = String
 
 coreToCPS :: Core.Prog -> CPS.CProg
 coreToCPS prog = evalVarSupply (runReaderT (coreToCPS' prog) Map.empty) supp
@@ -34,15 +35,13 @@ coreExprToCPS (Core.App e1 e2) k = do
             return . CPS.CLetCont kName xName kApplied . CPS.CAppFun z1 kName
     coreExprToCPS e1 k1
 coreExprToCPS (Core.Lam n e) k = do
-    (_, fName) <- nextVar
-    (kName, _) <- nextVar
+    (kName, fName) <- nextVar
     kApplied <- k fName
-    e' <- coreExprToCPS e (return . CPS.CAppCont kName)
-    let letval = CPS.CLetVal fName (CPS.CLamCont kName n e') kApplied
-    return letval
+    e' <- coreExprToCPSWithCont e kName
+    return $ CPS.CLetVal fName (CPS.CLamCont kName n e') kApplied
 coreExprToCPS (Core.Let n e1 e2) k = do
     (jName, _) <- nextVar
-    e1' <- coreExprToCPS e1 (return . CPS.CAppCont jName)
+    e1' <- coreExprToCPSWithCont e1 jName
     e2' <- coreExprToCPS e2 k
     return $ CPS.CLetCont jName n e2' e1'
 coreExprToCPS (Core.If cond e1 e2) k = do
@@ -50,8 +49,8 @@ coreExprToCPS (Core.If cond e1 e2) k = do
     (k1, x1) <- nextVar
     (k2, x2) <- nextVar
     kApplied <- k x0
-    e1' <- coreExprToCPS e1 (return . CPS.CAppCont k0)
-    e2' <- coreExprToCPS e2 (return . CPS.CAppCont k0)
+    e1' <- coreExprToCPSWithCont e1 k0
+    e2' <- coreExprToCPSWithCont e2 k0
     let kif z = return $ CPS.CLetCont k0 x0 kApplied (CPS.CLetCont k1 x1 e1' (CPS.CLetCont k2 x2 e2' (CPS.CIf z k1 k2)))
     coreExprToCPS cond kif
 coreExprToCPS (Core.Lit (Core.LFloat f)) k = do
@@ -60,7 +59,7 @@ coreExprToCPS (Core.Lit (Core.LFloat f)) k = do
     return $ CPS.CLetVal xName (CPS.CLitFloat f) kApplied
 coreExprToCPS (Core.LetRec f x e1 e2) k = do
     (kName, _) <- nextVar
-    e1' <- coreExprToCPS e1 (return . CPS.CAppCont kName)
+    e1' <- coreExprToCPSWithCont e1 kName
     e2' <- coreExprToCPS e2 k
     return $ CPS.CLetFix f kName x e1' e2'
 coreExprToCPS (Core.UnOp op expr) k = do
@@ -75,3 +74,46 @@ coreExprToCPS (Core.BinOp op e1 e2) k = do
     let k1 z1 = coreExprToCPS e2 $ k2 z1
     coreExprToCPS e1 k1
 coreExprToCPS _ _ = undefined
+
+coreExprToCPSWithCont :: Core.Expr -> CVar -> TranslateM CPS.CExpr
+coreExprToCPSWithCont (Core.Var x) k = return $ CPS.CAppCont k x
+coreExprToCPSWithCont (Core.App e1 e2) k = do
+    let k1 = \x1 -> coreExprToCPS e2 $ return . CPS.CAppFun x1 k
+    coreExprToCPS e1 k1
+coreExprToCPSWithCont (Core.Lam n e) k = do
+    (kName, fName) <- nextVar
+    e' <- coreExprToCPSWithCont e kName
+    return $ CPS.CLetVal fName (CPS.CLamCont kName n e') (CPS.CAppCont k fName)
+coreExprToCPSWithCont (Core.Let n e1 e2) k = do
+    (jName, _) <- nextVar
+    e1' <- coreExprToCPSWithCont e1 jName
+    e2' <- coreExprToCPSWithCont e2 k
+    return $ CPS.CLetCont jName n e2' e1'
+coreExprToCPSWithCont (Core.If cond e1 e2) k = do
+    (k1, x1) <- nextVar
+    (k2, x2) <- nextVar
+    e1' <- coreExprToCPSWithCont e1 k
+    e2' <- coreExprToCPSWithCont e2 k
+    let kif z = return $ CPS.CLetCont k1 x1 e1' (CPS.CLetCont k2 x2 e2' (CPS.CIf z k1 k2))
+    coreExprToCPS cond kif
+coreExprToCPSWithCont (Core.Lit (Core.LFloat f)) k = do
+    (_, xName) <- nextVar
+    return $ CPS.CLetVal xName (CPS.CLitFloat f) (CPS.CAppCont k xName)
+coreExprToCPSWithCont (Core.LetRec f x e1 e2) k = do
+    (jName, _) <- nextVar
+    e1' <- coreExprToCPSWithCont e1 jName
+    e2' <- coreExprToCPSWithCont e2 k
+    return $ CPS.CLetFix f jName x e1' e2'
+coreExprToCPSWithCont (Core.UnOp op expr) k = do
+    (_, resName) <- nextVar
+    let kprim x = return $ 
+            CPS.CLetPrim resName (CPS.CUnOp op) [x] (CPS.CAppCont k resName)
+    coreExprToCPS expr kprim
+coreExprToCPSWithCont (Core.BinOp op e1 e2) k = do
+    (_, resName) <- nextVar
+    let kApplied = CPS.CAppCont k resName
+        k2 z1 z2 = return $ CPS.CLetPrim resName (CPS.CBinOp op) [z1, z2] kApplied
+        k1 z1 = coreExprToCPS e2 $ k2 z1
+    coreExprToCPS e1 k1
+coreExprToCPSWithCont _ _ = undefined
+-- coreExprToCPSWithCont (Core.LetRec Name Name Expr Expr) k = undefined
