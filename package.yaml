@@ -21,6 +21,8 @@ description:         Please see the README on GitHub at <https://github.com/swtw
 dependencies:
 - base >= 4.7 && < 5
 - array
+- containers
+- mtl
 # for now, because otherwise HLS doesn't see it
 - tasty
 - tasty-hunit
