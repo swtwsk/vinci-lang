@@ -13,7 +13,8 @@ module Utils.VarSupply (
     evalVarSupplyT,
     evalVarSupply,
     runVarSupplyT,
-    runVarSupply
+    runVarSupply,
+    fromInfiniteList
 ) where
 
 import Control.Monad.Except

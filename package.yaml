@@ -22,6 +22,7 @@ dependencies:
 - base >= 4.7 && < 5
 - array
 - containers
+- dlist
 - mtl
 # for now, because otherwise HLS doesn't see it
 - tasty

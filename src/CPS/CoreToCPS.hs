@@ -22,9 +22,10 @@ coreToCPS prog = evalVarSupply (runReaderT (coreToCPS' prog) Map.empty) supp
 
 coreToCPS' :: Core.Prog -> TranslateM CPS.CProg
 coreToCPS' (Core.Prog progName args expr) = do
-    expr' <- coreExprToCPS expr k
-    return $ CPS.CProcLam progName args expr'
-    where k x = return $ CPS.CExit x
+    (kName, _) <- nextVar
+    expr' <- coreExprToCPSWithCont expr kName
+    return $ CPS.CProcLam progName kName args expr'
+    -- where k x = return $ CPS.CExit x
 
 coreExprToCPS :: Core.Expr -> CCont -> TranslateM CPS.CExpr
 coreExprToCPS (Core.Var x) k = k x

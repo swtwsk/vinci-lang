@@ -25,7 +25,7 @@ data CPrimOp = CBinOp BinOp
              | CUnOp UnOp
              deriving Eq
 
-data CProg = CProcLam String [String] CExpr -- letproc proc (args*) = E
+data CProg = CProcLam String String [String] CExpr -- letproc proc k (args*) = E
 --            | CJumpLam [String] CExpr
            deriving Eq
 
@@ -106,14 +106,15 @@ instance AlphaEq CVal where
     _ `alphaReq` _ = return False
 
 instance AlphaEq CProg where
-    (CProcLam _ args1 c1) `alphaReq` (CProcLam _ args2 c2) = do
+    (CProcLam _ k1 args1 c1) `alphaReq` (CProcLam _ k2 args2 c2) = do
         (varMap1, varMap2) <- ask
+        newK <- nextVar
         let argsLen = length args1
             argsLenEq = length args1 == length args2
         newArgs <- replicateM argsLen nextVar
         let mapFold = foldl (\acc (a, b) -> Map.insert a b acc)
-            newMap1 = mapFold varMap1 $ zip args1 newArgs
-            newMap2 = mapFold varMap2 $ zip args2 newArgs
+            newMap1 = Map.insert k1 newK $ mapFold varMap1 $ zip args1 newArgs
+            newMap2 = Map.insert k2 newK $ mapFold varMap2 $ zip args2 newArgs
         cEq <- local (const (newMap1, newMap2)) $ c1 `alphaReq` c2
         return $ argsLenEq && cEq
 
@@ -145,7 +146,7 @@ instance Show CPrimOp where
     show (CUnOp op)  = show op
 
 instance Show CProg where
-    show (CProcLam procName args e) = 
-        "letproc " ++ procName ++ " " ++ unwords args ++ " = " ++ show e
+    show (CProcLam procName k args e) = 
+        "letproc " ++ procName ++ " " ++ k ++ " " ++ unwords args ++ " = " ++ show e
 --     show (CJumpLam args e) =
 --         "λjump(" ++ intercalate ", " args ++ ") -> " ++ show e

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 83e64ffce0b1892abbece729e099eba26fd988e94c8b9fb91c1e4ae9d44a8738
+-- hash: 75eaa3bae5a2703eb90e2dc2c1e776618fd07a6155ada9adfc638fb11f1de60f
 
 name:           vinci-lang
 version:        0.1.0.0
@@ -35,6 +35,8 @@ library
       Parser.LexVinci
       Parser.ParVinci
       Parser.PrintVinci
+      SSA.AST
+      SSA.CPStoSSA
       Utils.VarSupply
   other-modules:
       Paths_vinci_lang
@@ -45,6 +47,7 @@ library
       array
     , base >=4.7 && <5
     , containers
+    , dlist
     , mtl
     , tasty
     , tasty-hunit
@@ -61,6 +64,7 @@ executable vinci-lang-exe
       array
     , base >=4.7 && <5
     , containers
+    , dlist
     , mtl
     , tasty
     , tasty-hunit
@@ -74,6 +78,7 @@ test-suite vinci-lang-test
       AlphaEqTest
       CoreToCPSTest
       ParserTests
+      TranspileToSSATest
       Paths_vinci_lang
   hs-source-dirs:
       test
@@ -82,6 +87,7 @@ test-suite vinci-lang-test
       array
     , base >=4.7 && <5
     , containers
+    , dlist
     , mtl
     , tasty
     , tasty-hunit
