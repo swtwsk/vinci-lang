@@ -27,6 +27,7 @@ dependencies:
 # for now, because otherwise HLS doesn't see it
 - tasty
 - tasty-hunit
+- tasty-quickcheck
 
 library:
   source-dirs: src
@@ -61,3 +62,4 @@ tests:
     - vinci-lang
     - tasty
     - tasty-hunit
+    - tasty-quickcheck

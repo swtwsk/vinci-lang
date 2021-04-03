@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 75eaa3bae5a2703eb90e2dc2c1e776618fd07a6155ada9adfc638fb11f1de60f
+-- hash: 7d1bdac6ddfc2e7ad168c2ae4ea5512789bca1b7d9f9e6f7342d8efb1d4315b5
 
 name:           vinci-lang
 version:        0.1.0.0
@@ -26,6 +26,7 @@ source-repository head
 library
   exposed-modules:
       Core.AST
+      Core.Interpreter
       CPS.AST
       CPS.CoreToCPS
       Frontend.AST
@@ -37,6 +38,7 @@ library
       Parser.PrintVinci
       SSA.AST
       SSA.CPStoSSA
+      SSA.Interpreter
       Utils.VarSupply
   other-modules:
       Paths_vinci_lang
@@ -51,6 +53,7 @@ library
     , mtl
     , tasty
     , tasty-hunit
+    , tasty-quickcheck
   default-language: Haskell2010
 
 executable vinci-lang-exe
@@ -68,6 +71,7 @@ executable vinci-lang-exe
     , mtl
     , tasty
     , tasty-hunit
+    , tasty-quickcheck
     , vinci-lang
   default-language: Haskell2010
 
@@ -77,6 +81,8 @@ test-suite vinci-lang-test
   other-modules:
       AlphaEqTest
       CoreToCPSTest
+      InterpreterTests.CoreTest
+      InterpreterTests.SSATest
       ParserTests
       TranspileToSSATest
       Paths_vinci_lang
@@ -91,5 +97,6 @@ test-suite vinci-lang-test
     , mtl
     , tasty
     , tasty-hunit
+    , tasty-quickcheck
     , vinci-lang
   default-language: Haskell2010
