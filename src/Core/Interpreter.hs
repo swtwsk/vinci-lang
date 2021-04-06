@@ -47,9 +47,9 @@ eval' (If cond e1 e2) = do
 eval' (Let n e1 e2) = do
     e1' <- eval' e1
     local (Map.insert n e1') (eval' e2)
-eval' (LetRec f x e1 e2) = do
+eval' (LetRec f args e1 e2) = do
     env <- ask
-    let e1' = Lam x e1
+    let e1' = foldr Lam e1 args
     e1'' <- local (Map.insert f (VFixed f e1' env)) (eval' e1')
     local (Map.insert f e1'') (eval' e2)
 eval' (BinOp op e1 e2) = do
@@ -77,7 +77,6 @@ eval' (UnOp op e) = do
         unOp (VFloat f) OpNeg = return . VFloat $ (-f)
         unOp (VBool b) OpNot  = return . VBool $ not b
         unOp _ _ = throwError "Unexpected error"
-eval' TailCall {} = undefined
 
 apply :: Value -> Value -> EvalM Value
 apply (VClosure x e1 cenv) e2 = local (Map.insert x e2 . Map.union cenv) (eval' e1)

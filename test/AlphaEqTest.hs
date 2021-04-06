@@ -23,10 +23,10 @@ tests = testGroup "Alpha Equivalence"
         nestedAllYCombinator = CLetVal "f" (CLamCont "k" "y" $ CLetVal "g" (CLamCont "k" "y" (CAppCont "k" "y")) (CAppCont "k" "g")) (CExit "f")
         succX = CLetVal "f" (CLamCont "k" "x" (CLetVal "x1" (CLitFloat 1.0) (CLetPrim "r1" (CBinOp OpAdd) ["x", "x1"] (CAppCont "k" "r1")))) (CExit "f")
         succY = CLetVal "f" (CLamCont "k" "y" (CLetVal "x1" (CLitFloat 1.0) (CLetPrim "r1" (CBinOp OpAdd) ["y", "x1"] (CAppCont "k" "r1")))) (CExit "f")
-        recWithoutCallX = CLetFix "f" "k" "x" (CLetVal "x1" (CLitFloat 1.0) (CLetPrim "r1" (CBinOp OpAdd) ["x", "x1"] (CAppCont "k" "r1"))) (CLetVal "x0" (CLitFloat 0.0) (CLetCont "k" "x" (CExit "x") (CAppFun "f" "k" "x0")))
-        recWithoutCallY = CLetFix "g" "h" "y" (CLetVal "x1" (CLitFloat 1.0) (CLetPrim "r1" (CBinOp OpAdd) ["y", "x1"] (CAppCont "h" "r1"))) (CLetVal "x0" (CLitFloat 0.0) (CLetCont "k" "x" (CExit "x") (CAppFun "g" "k" "x0")))
-        recWithCallX = CLetFix "f" "k" "x" (CLetCont "k2" "x" (CAppCont "k" "x") (CAppFun "f" "k2" "x")) (CLetVal "x0" (CLitFloat 0.0) (CLetCont "k" "x" (CExit "x") (CAppFun "f" "k" "x0")))
-        recWithCallY = CLetFix "g" "h" "y" (CLetCont "k2" "x" (CAppCont "h" "x") (CAppFun "g" "k2" "y")) (CLetVal "x0" (CLitFloat 0.0) (CLetCont "k" "x" (CExit "x") (CAppFun "g" "k" "x0")))
+        recWithoutCallX = CLetFix "f" "k" ["x"] (CLetVal "x1" (CLitFloat 1.0) (CLetPrim "r1" (CBinOp OpAdd) ["x", "x1"] (CAppCont "k" "r1"))) (CLetVal "x0" (CLitFloat 0.0) (CLetCont "k" "x" (CExit "x") (CAppFun "f" "k" ["x0"])))
+        recWithoutCallY = CLetFix "g" "h" ["y"] (CLetVal "x1" (CLitFloat 1.0) (CLetPrim "r1" (CBinOp OpAdd) ["y", "x1"] (CAppCont "h" "r1"))) (CLetVal "x0" (CLitFloat 0.0) (CLetCont "k" "x" (CExit "x") (CAppFun "g" "k" ["x0"])))
+        recWithCallX = CLetFix "f" "k" ["x"] (CLetCont "k2" "x" (CAppCont "k" "x") (CAppFun "f" "k2" ["x"])) (CLetVal "x0" (CLitFloat 0.0) (CLetCont "k" "x" (CExit "x") (CAppFun "f" "k" ["x0"])))
+        recWithCallY = CLetFix "g" "h" ["y"] (CLetCont "k2" "x" (CAppCont "h" "x") (CAppFun "g" "k2" ["y"])) (CLetVal "x0" (CLitFloat 0.0) (CLetCont "k" "x" (CExit "x") (CAppFun "g" "k" ["x0"])))
         iCombinator = CLetVal "f" (CLamCont "k" "x" $ CAppCont "k" "x") (CExit "f")
 
 assertAlphaEq :: (AlphaEq a, Show a) => a -> a -> Assertion

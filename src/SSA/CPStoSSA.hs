@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 module SSA.CPStoSSA (cpsToSSA) where
 
 import Control.Monad.RWS
@@ -68,21 +69,21 @@ cExprToSSA (CPS.CAppCont k x) = do
     isReturnBounded <- isJust <$> asks (Map.lookup k . _contTypeMap)
     if isReturnBounded && isVarBounded
         then output $ SReturn (SVar x)
-        else updatePhiAndGoto k x
-cExprToSSA (CPS.CAppFun f k x) = do
+        else updatePhiAndGoto k [x]
+cExprToSSA (CPS.CAppFun f k args) = do
     contMap <- asks _contTypeMap
     case Map.lookup k contMap of
-        Just ReturnCont -> updatePhiAndGoto f x -- + phiNode f_arg1 -> x
+        Just ReturnCont -> updatePhiAndGoto f args -- + phiNode f_arg1 -> x
         Just (RecReturnCont g) ->
             if f == g
-            then updatePhiAndGoto f x -- + phiNode f_arg1 -> x
+            then updatePhiAndGoto f args -- + phiNode f_arg1 -> x
             else callFnAndJump -- + phiNode k_f_arg1 -> x
         Nothing -> callFnAndJump -- + phiNode k_f_arg1 -> x
     where
         callFnAndJump = do
             v <- nextVar
-            output $ SAssign v (SApp f [x])
-            updatePhiAndGoto k v
+            output $ SAssign v (SApp f args)
+            updatePhiAndGoto k [v]
             output $ SGoto (SLabel k)
 cExprToSSA (CPS.CLetPrim x (CPS.CBinOp OpAdd) [a, b] cexpr) = do
     output $ SAssign x (SAdd (SVar a) (SVar b))
@@ -93,10 +94,10 @@ cExprToSSA (CPS.CLetPrim x (CPS.CBinOp OpLT) [a, b] cexpr) = do
 cExprToSSA CPS.CLetPrim {} = undefined
 cExprToSSA (CPS.CIf x k1 k2) = output $ 
     SIf (SVar x) (SBlock [SGoto $ SLabel k1]) (SBlock [SGoto $ SLabel k2])
-cExprToSSA (CPS.CLetFix f k x c1 c2) = do
+cExprToSSA (CPS.CLetFix f k args c1 c2) = do
     jumps <- gets _untranspiledJumps
     closure <- ask
-    let jumps' = (f, RecCont k [x] c1, closure):jumps
+    let jumps' = (f, RecCont k args c1, closure):jumps
     modify (\ts -> ts { _untranspiledJumps = jumps' })
     cExprToSSA c2
 cExprToSSA (CPS.CExit _) = undefined
@@ -129,10 +130,11 @@ updatePhiNodes ((SLabelled l@(SLabel l') phiNodes b):t) st = labelled' : updateP
         zipAppend _ _ = undefined  -- error
 updatePhiNodes [] _ = []
 
-updatePhiAndGoto :: String -> String -> TranspileT ()
-updatePhiAndGoto k x = do
+updatePhiAndGoto :: String -> [String] -> TranspileT ()
+updatePhiAndGoto k args = do
     currentLabel <- asks _currentLabel
-    modify $ \s -> s { _phiValues = updatePhi k [(currentLabel, x)] $ _phiValues s }
+    let newPhis = (currentLabel, ) <$> args
+    modify $ \s -> s { _phiValues = updatePhi k newPhis $ _phiValues s }
     output $ SGoto (SLabel k)
 
 nextVar :: TranspileT String

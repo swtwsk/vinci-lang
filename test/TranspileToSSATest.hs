@@ -25,13 +25,13 @@ coreToSSATest = testGroup "Core to SSA"
     [ testCase "Recursion g" $ assertValueEq (runProc gCore (Core.App (Core.Var "f") (Core.Lit $ Core.LFloat 7.0))) (flip SSAInt.run [7.0] . cpsToSSA . coreToCPS $ gCore)
     , QC.testProperty "Recursion g - f(x) == f_ssa(x)" $ \(QC.Positive x) -> valueEq (runProc gCore (Core.App (Core.Var "f") (Core.Lit $ Core.LFloat x))) (SSAInt.run (cpsToSSA . coreToCPS $ gCore) [x]) ]
     where
-        gCore = Core.Prog "f" ["x"] $ Core.LetRec "g" "i" (Core.If (Core.BinOp OpLT (Core.Var "i") (Core.Lit $ Core.LFloat 10.0)) (Core.App (Core.Var "g") (Core.BinOp OpAdd (Core.Var "x") (Core.Var "i"))) (Core.Var "i")) (Core.App (Core.Var "g") (Core.Lit $ Core.LFloat 0.0))
+        gCore = Core.Prog "f" ["x"] $ Core.LetRec "g" ["i"] (Core.If (Core.BinOp OpLT (Core.Var "i") (Core.Lit $ Core.LFloat 10.0)) (Core.App (Core.Var "g") (Core.BinOp OpAdd (Core.Var "x") (Core.Var "i"))) (Core.Var "i")) (Core.App (Core.Var "g") (Core.Lit $ Core.LFloat 0.0))
 
 cpsToSSATest :: TestTree
 cpsToSSATest = testGroup "CPS to SSA"
     [ testCase "Recursion g" $ cpsToSSA gCps @?= gSsa ]
     where
-        gCps = CPS.CProcLam "f" "k" ["x"] $ CPS.CLetFix "g" "l" "i" (CPS.CLetVal "x10" (CPS.CLitFloat 10.0) $ CPS.CLetPrim "res" (CPS.CBinOp OpLT) ["i", "x10"] $ CPS.CLetCont "k1" "x1" (CPS.CLetPrim "res2" (CPS.CBinOp OpAdd) ["x", "i"] $ CPS.CAppFun "g" "l" "res2") $ CPS.CLetCont "k2" "x2" (CPS.CAppCont "l" "i") $ CPS.CIf "res" "k1" "k2") (CPS.CLetVal "x0" (CPS.CLitFloat 0.0) $ CPS.CAppFun "g" "k" "x0")
+        gCps = CPS.CProcLam "f" "k" ["x"] $ CPS.CLetFix "g" "l" ["i"] (CPS.CLetVal "x10" (CPS.CLitFloat 10.0) $ CPS.CLetPrim "res" (CPS.CBinOp OpLT) ["i", "x10"] $ CPS.CLetCont "k1" "x1" (CPS.CLetPrim "res2" (CPS.CBinOp OpAdd) ["x", "i"] $ CPS.CAppFun "g" "l" ["res2"]) $ CPS.CLetCont "k2" "x2" (CPS.CAppCont "l" "i") $ CPS.CIf "res" "k1" "k2") (CPS.CLetVal "x0" (CPS.CLitFloat 0.0) $ CPS.CAppFun "g" "k" ["x0"])
         
 gSsa :: SFnDef
 gSsa = SFnDef "f" [SArg "x"] (SBlock [SAssign "x0" $ SLitFloat 0.0, SGoto $ SLabel "g"]) 
