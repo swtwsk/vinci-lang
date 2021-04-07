@@ -7,6 +7,7 @@ import Data.Map as Map
 
 import Core.AST
 import Core.Interpreter
+import Core.Ops
 
 tests :: TestTree
 tests = testGroup "Core tests"

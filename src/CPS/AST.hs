@@ -4,7 +4,7 @@ import Control.Monad.Reader
 import Control.Monad.Zip (mzip)
 import qualified Data.Map as Map
 
-import Core.AST (UnOp, BinOp)
+import Core.Ops (BinOp, UnOp)
 import Utils.VarSupply (VarSupply, evalVarSupply, nextVar)
 
 data CExpr = CLetVal String CVal CExpr                  -- letval x = V in K

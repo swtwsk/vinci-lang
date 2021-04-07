@@ -5,6 +5,7 @@ import Control.Monad.Except
 import qualified Data.Map as Map
 
 import Core.AST
+import Core.Ops
 
 type Err = String
 type Env = Map.Map String Value

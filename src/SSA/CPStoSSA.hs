@@ -9,7 +9,6 @@ import Data.Bifunctor
 import Data.Maybe (fromMaybe, isJust)
 
 import qualified CPS.AST as CPS
-import Core.AST (BinOp(..))
 import SSA.AST
 import Utils.VarSupply (fromInfiniteList)
 
@@ -85,11 +84,11 @@ cExprToSSA (CPS.CAppFun f k args) = do
             output $ SAssign v (SApp f args)
             updatePhiAndGoto k [v]
             output $ SGoto (SLabel k)
-cExprToSSA (CPS.CLetPrim x (CPS.CBinOp OpAdd) [a, b] cexpr) = do
-    output $ SAssign x (SAdd (SVar a) (SVar b))
+cExprToSSA (CPS.CLetPrim x (CPS.CBinOp op) [a, b] cexpr) = do
+    output $ SAssign x (SBinOp op (SVar a) (SVar b))
     cExprToSSA cexpr
-cExprToSSA (CPS.CLetPrim x (CPS.CBinOp OpLT) [a, b] cexpr) = do
-    output $ SAssign x (SLT (SVar a) (SVar b))
+cExprToSSA (CPS.CLetPrim x (CPS.CUnOp op) [a] cexpr) = do
+    output $ SAssign x (SUnOp op (SVar a))
     cExprToSSA cexpr
 cExprToSSA CPS.CLetPrim {} = undefined
 cExprToSSA (CPS.CIf x k1 k2) = output $ 

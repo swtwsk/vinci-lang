@@ -3,8 +3,8 @@ module AlphaEqTest (tests) where
 import Test.Tasty
 import Test.Tasty.HUnit
 
+import Core.Ops (BinOp(..))
 import CPS.AST
-import Core.AST (BinOp(..))
 
 tests :: TestTree
 tests = testGroup "Alpha Equivalence" 

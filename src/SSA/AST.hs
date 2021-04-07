@@ -2,6 +2,8 @@ module SSA.AST where
 
 import Data.List (intercalate, sort)
 
+import Core.Ops
+
 type VarName = String
 
 data SFnDef = SFnDef String [SArg] SBlock [SLabelledBlock] -- deriving Eq
@@ -20,9 +22,8 @@ data SStmt = SAssign VarName SExpr
 
 data SExpr = SVar VarName
            | SApp VarName [VarName]
-           | SAdd SExpr SExpr
-           | SMul SExpr SExpr
-           | SLT SExpr SExpr
+           | SBinOp BinOp SExpr SExpr
+           | SUnOp UnOp SExpr
            | SLitFloat Double
            deriving Eq
 
@@ -69,7 +70,6 @@ instance Show SArg where
 instance Show SExpr where
     show (SVar v) = v
     show (SApp f args) = f ++ "(" ++ intercalate "," args ++ ")"
-    show (SAdd e1 e2) = show e1 ++ " + " ++ show e2
-    show (SMul e1 e2) = show e1 ++ " * " ++ show e2
-    show (SLT e1 e2)  = show e1 ++ " < " ++ show e2
+    show (SBinOp op e1 e2) = show e1 ++ " " ++ show op ++ " " ++ show e2
+    show (SUnOp op e) = show op ++ " " ++ show e
     show (SLitFloat f) = show f

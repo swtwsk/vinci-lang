@@ -5,6 +5,7 @@ import Control.Monad.State
 import Data.Bifunctor
 import qualified Data.Map as Map
 
+import Core.Ops
 import SSA.AST
 
 type Err = String
@@ -72,24 +73,28 @@ runExpr (SVar var) = do
     let value = Map.lookup var values
     maybe (throwError $ "Unbound variable " ++ var) return value
 runExpr (SApp _f _args) = undefined
-runExpr (SAdd e1 e2) = do
+runExpr (SBinOp op e1 e2) = do
     e1' <- runExpr e1
     e2' <- runExpr e2
-    case (e1', e2') of
-        (VFloat f1, VFloat f2) -> return . VFloat $ f1 + f2
-        _ -> throwError $ "Cannot add " ++ show e1 ++ " and " ++ show e2
-runExpr (SMul e1 e2) = do
-    e1' <- runExpr e1
-    e2' <- runExpr e2
-    case (e1', e2') of
-        (VFloat f1, VFloat f2) -> return . VFloat $ f1 * f2
-        _ -> throwError $ "Cannot multiply " ++ show e1 ++ " and " ++ show e2
-runExpr (SLT e1 e2) = do
-    e1' <- runExpr e1
-    e2' <- runExpr e2
-    case (e1', e2') of
-        (VFloat f1, VFloat f2) -> return . VBool $ f1 < f2
-        _ -> throwError $ "Cannot compare " ++ show e1 ++ " and " ++ show e2
+    case (op, e1', e2') of
+        (OpAdd, VFloat f1, VFloat f2) -> return . VFloat $ f1 + f2
+        (OpSub, VFloat f1, VFloat f2) -> return . VFloat $ f1 - f2
+        (OpMul, VFloat f1, VFloat f2) -> return . VFloat $ f1 * f2
+        (OpDiv, VFloat _, VFloat 0.0) -> throwError "Division by zero"
+        (OpDiv, VFloat f1, VFloat f2) -> return . VFloat $ f1 / f2
+        (OpAnd, VBool b1, VBool b2)   -> return . VBool $ b1 && b2
+        (OpOr, VBool b1, VBool b2)    -> return . VBool $ b1 || b2
+        (OpEq, VFloat f1, VFloat f2)  -> return . VBool $ f1 == f2
+        (OpEq, VBool b1, VBool b2)    -> return . VBool $ b1 == b2
+        (OpLT, VFloat f1, VFloat f2)  -> return . VBool $ f1 < f2
+        _ -> throwError $ "Cannot do " ++ show op ++ " on " ++ show e1' 
+                ++ " and " ++ show e2'
+runExpr (SUnOp op e) = do
+    e' <- runExpr e
+    case (op, e') of
+        (OpNeg, VFloat f) -> return . VFloat $ -f
+        (OpNot, VBool b) -> return . VBool $ not b
+        _ -> throwError $ "Cannot do " ++ show op ++ " on " ++ show e'
 runExpr (SLitFloat f) = return $ VFloat f
 
 instance Show Value where
