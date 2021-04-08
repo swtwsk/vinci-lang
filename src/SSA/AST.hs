@@ -17,7 +17,7 @@ data SPhiNode = SPhiNode VarName [(SLabel, SArg)] deriving Eq
 data SStmt = SAssign VarName SExpr
            | SGoto SLabel
            | SReturn SExpr
-           | SIf SExpr SBlock SBlock
+           | SIf SExpr SLabel SLabel
            deriving Eq
 
 data SExpr = SVar VarName
@@ -58,8 +58,8 @@ instance Show SStmt where
     show (SAssign v e) = v ++ " <- " ++ show e ++ ";"
     show (SGoto l) = "goto " ++ show l ++ ";"
     show (SReturn e) = "return " ++ show e ++ ";"
-    show (SIf cond b1 b2) = "if (" ++ show cond ++ ") {" ++ show b1 ++ 
-        "} else {" ++ show b2 ++ "}"
+    show (SIf cond b1 b2) = "if (" ++ show cond ++ ") { goto " ++ show b1 ++ 
+        "} else { goto " ++ show b2 ++ "}"
 
 instance Show SLabel where
     show (SLabel l) = l

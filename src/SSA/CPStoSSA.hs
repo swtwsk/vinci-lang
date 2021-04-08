@@ -41,7 +41,7 @@ cpsToSSA (CPS.CProcLam fName k args expr) =
     where
         args' = SArg <$> args
         r = ReaderEnv { _contTypeMap = Map.singleton k ReturnCont
-                      , _variables = Set.empty
+                      , _variables = Set.fromList args
                       , _currentLabel = fName ++ "_init" }
         (st, blockExprs) = execRWS (cExprToSSA expr) r emptyState
         (endState, labelled) = evalJumpsToSSA st
@@ -92,7 +92,7 @@ cExprToSSA (CPS.CLetPrim x (CPS.CUnOp op) [a] cexpr) = do
     cExprToSSA cexpr
 cExprToSSA CPS.CLetPrim {} = undefined
 cExprToSSA (CPS.CIf x k1 k2) = output $ 
-    SIf (SVar x) (SBlock [SGoto $ SLabel k1]) (SBlock [SGoto $ SLabel k2])
+    SIf (SVar x) (SLabel k1) (SLabel k2)
 cExprToSSA (CPS.CLetFix f k args c1 c2) = do
     jumps <- gets _untranspiledJumps
     closure <- ask

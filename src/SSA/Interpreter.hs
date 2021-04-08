@@ -31,6 +31,7 @@ run (SFnDef fName fArgs block labelled) args = case run' of
         st = StateEnv { _values = Map.fromList valuesList
                       , _labelled = Map.fromList labelled'
                       , _currentLabel = SLabel $ fName ++ "_init" }
+
 runLabelled :: SLabelledBlock -> SLabel -> SSAM (Maybe Value)
 runLabelled (SLabelled l phis block) lastLabel = do
     mapM_ runStmt phiAssignments
@@ -63,8 +64,8 @@ runStmt (SReturn e) = pure <$> runExpr e
 runStmt (SIf cond b1 b2) = do
     cond' <- runExpr cond
     case cond' of
-        VBool True -> runBlock b1
-        VBool False -> runBlock b2
+        VBool True -> runStmt (SGoto b1)
+        VBool False -> runStmt (SGoto b2)
         _ -> throwError $ show cond ++ " is not a proper condition"
 
 runExpr :: SExpr -> SSAM Value
