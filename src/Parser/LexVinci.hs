@@ -6,7 +6,7 @@
 {-# OPTIONS_GHC -w #-}
 module Parser.LexVinci where
 
-
+import Prelude
 
 import qualified Data.Bits
 import Data.Word (Word8)
@@ -95,14 +95,11 @@ alex_actions = array (0 :: Int, 10)
   , (0,alex_action_8)
   ]
 
-{-# LINE 41 "Parser/LexVinci.x" #-}
+{-# LINE 50 "Parser/LexVinci.x" #-}
 
 
 tok :: (Posn -> String -> Token) -> (Posn -> String -> Token)
 tok f p s = f p s
-
-share :: String -> String
-share = id
 
 data Tok =
    TS !String !Int    -- reserved words and symbols
@@ -122,10 +119,12 @@ data Token =
  | Err Posn
   deriving (Eq,Show,Ord)
 
+printPosn :: Posn -> String
+printPosn (Pn _ l c) = "line " ++ show l ++ ", column " ++ show c
+
 tokenPos :: [Token] -> String
-tokenPos (PT (Pn _ l _) _ :_) = "line " ++ show l
-tokenPos (Err (Pn _ l _) :_) = "line " ++ show l
-tokenPos _ = "end of file"
+tokenPos (t:_) = printPosn (tokenPosn t)
+tokenPos [] = "end of file"
 
 tokenPosn :: Token -> Posn
 tokenPosn (PT p _) = p
@@ -138,20 +137,23 @@ posLineCol :: Posn -> (Int, Int)
 posLineCol (Pn _ l c) = (l,c)
 
 mkPosToken :: Token -> ((Int, Int), String)
-mkPosToken t@(PT p _) = (posLineCol p, prToken t)
+mkPosToken t@(PT p _) = (posLineCol p, tokenText t)
 
-prToken :: Token -> String
-prToken t = case t of
+tokenText :: Token -> String
+tokenText t = case t of
   PT _ (TS s _) -> s
   PT _ (TL s)   -> show s
   PT _ (TI s)   -> s
   PT _ (TV s)   -> s
   PT _ (TD s)   -> s
   PT _ (TC s)   -> s
+  Err _         -> "#error"
   PT _ (T_VIdent s) -> s
   PT _ (T_SIdent s) -> s
   PT _ (T_TPolyIdent s) -> s
 
+prToken :: Token -> String
+prToken t = tokenText t
 
 data BTree = N | B String Tok BTree BTree deriving (Show)
 
@@ -165,15 +167,18 @@ eitherResIdent tv s = treeFind resWords
 
 resWords :: BTree
 resWords = b "Bool" 20 (b "." 10 (b "*" 5 (b "(" 3 (b "%" 2 (b "!=" 1 N N) N) (b ")" 4 N N)) (b "-" 8 (b "," 7 (b "+" 6 N N) N) (b "->" 9 N N))) (b "<=" 15 (b ";;" 13 (b ":" 12 (b "/" 11 N N) N) (b "<" 14 N N)) (b ">" 18 (b "==" 17 (b "=" 16 N N) N) (b ">=" 19 N N)))) (b "if" 30 (b "\\" 25 (b "Int" 23 (b "Float" 22 (b "False" 21 N N) N) (b "True" 24 N N)) (b "and" 28 (b "also" 27 (b "_" 26 N N) N) (b "else" 29 N N))) (b "or" 35 (b "letrec" 33 (b "let" 32 (b "in" 31 N N) N) (b "not" 34 N N)) (b "{" 38 (b "then" 37 (b "struct" 36 N N) N) (b "}" 39 N N))))
-   where b s n = let bs = id s
-                  in B bs (TS bs n)
+   where b s n = let bs = s
+                 in  B bs (TS bs n)
 
 unescapeInitTail :: String -> String
-unescapeInitTail = id . unesc . tail . id where
+unescapeInitTail = id . unesc . tail . id
+  where
   unesc s = case s of
     '\\':c:cs | elem c ['\"', '\\', '\''] -> c : unesc cs
     '\\':'n':cs  -> '\n' : unesc cs
     '\\':'t':cs  -> '\t' : unesc cs
+    '\\':'r':cs  -> '\r' : unesc cs
+    '\\':'f':cs  -> '\f' : unesc cs
     '"':[]    -> []
     c:cs      -> c : unesc cs
     _         -> []
@@ -215,7 +220,7 @@ tokens str = go (alexStartPos, '\n', [], str)
 alexGetByte :: AlexInput -> Maybe (Byte,AlexInput)
 alexGetByte (p, c, (b:bs), s) = Just (b, (p, c, bs, s))
 alexGetByte (p, _, [], s) =
-  case  s of
+  case s of
     []  -> Nothing
     (c:s) ->
              let p'     = alexMove p c
@@ -246,13 +251,13 @@ utf8Encode = map fromIntegral . go . ord
                         , 0x80 + oc Data.Bits..&. 0x3f
                         ]
 
-alex_action_2 =  tok (\p s -> PT p (eitherResIdent (TV . share) s)) 
-alex_action_3 =  tok (\p s -> PT p (eitherResIdent (T_VIdent . share) s)) 
-alex_action_4 =  tok (\p s -> PT p (eitherResIdent (T_SIdent . share) s)) 
-alex_action_5 =  tok (\p s -> PT p (eitherResIdent (T_TPolyIdent . share) s)) 
-alex_action_6 =  tok (\p s -> PT p (eitherResIdent (TV . share) s)) 
-alex_action_7 =  tok (\p s -> PT p (TI $ share s))    
-alex_action_8 =  tok (\p s -> PT p (TD $ share s)) 
+alex_action_2 =  tok (\p s -> PT p (eitherResIdent TV s)) 
+alex_action_3 =  tok (\p s -> PT p (eitherResIdent T_VIdent s)) 
+alex_action_4 =  tok (\p s -> PT p (eitherResIdent T_SIdent s)) 
+alex_action_5 =  tok (\p s -> PT p (eitherResIdent T_TPolyIdent s)) 
+alex_action_6 =  tok (\p s -> PT p (eitherResIdent TV s)) 
+alex_action_7 =  tok (\p s -> PT p (TI s))    
+alex_action_8 =  tok (\p s -> PT p (TD s)) 
 {-# LINE 1 "templates/GenericTemplate.hs" #-}
 -- -----------------------------------------------------------------------------
 -- ALEX TEMPLATE

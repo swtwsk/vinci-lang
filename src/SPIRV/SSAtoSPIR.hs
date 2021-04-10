@@ -1,14 +1,15 @@
 {-# LANGUAGE TupleSections #-}
-module SPIRV.SSAtoSPIR where
+module SPIRV.SSAtoSPIR (ssaToSpir) where
 
 import Control.Monad
 import Control.Monad.RWS
-import Data.DList --(DList, singleton, toList)
+import Data.DList (DList, toList)
 import qualified Data.Map as Map
 
 import Core.Ops
 import SSA.AST
 import SPIRV.SpirOps
+import Utils.DList (output)
 import Utils.VarSupply (fromInfiniteList)
 
 data SpirType = SpirFloat 
@@ -168,6 +169,3 @@ floatToFloatFunType = SpirFn SpirFloat [SpirFloatParameter]
 -- courtesy of https://stackoverflow.com/a/12131896
 swap1_3 :: (a -> b -> c -> d) -> (b -> c -> a -> d)
 swap1_3 = (flip .) . flip
-
-output :: SpirOp -> SpirM ()
-output = tell . singleton

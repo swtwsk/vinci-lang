@@ -4,12 +4,13 @@ module SSA.CPStoSSA (cpsToSSA) where
 import Control.Monad.RWS
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Data.DList (DList, singleton, toList)
+import Data.DList (DList, toList)
 import Data.Bifunctor
 import Data.Maybe (fromMaybe, isJust)
 
 import qualified CPS.AST as CPS
 import SSA.AST
+import Utils.DList (output)
 import Utils.VarSupply (fromInfiniteList)
 
 type Label = String
@@ -170,6 +171,3 @@ updatePhi destLabel phiVars phiMap =
         zipAppend (h1:t1) (h2:t2) = (h1 ++ [h2]) : zipAppend t1 t2
         zipAppend [] (h:t) = [h] : zipAppend [] t
         zipAppend l [] = l
-
-output :: SStmt -> TranspileT ()
-output = tell . singleton
