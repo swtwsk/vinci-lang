@@ -4,6 +4,7 @@ data BinOp = OpAdd
            | OpMul
            | OpSub
            | OpDiv
+           | OpMod
            | OpAnd
            | OpOr
            | OpEq
@@ -20,6 +21,7 @@ instance Show BinOp where
         OpMul -> "*"
         OpSub -> "-"
         OpDiv -> "/"
+        OpMod -> "%"
         OpAnd -> "and"
         OpOr  -> "or"
         OpEq  -> "=="

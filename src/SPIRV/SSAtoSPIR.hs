@@ -37,7 +37,7 @@ fnDefToSpir (SFnDef fName fArgs block labelled) = do
     let floatTypeId          = typeIds Map.! SpirFloat
         floatParameterTypeId = typeIds Map.! SpirFloatParameter
         floatToFloatTypeId   = typeIds Map.! floatToFloatFunType
-    output $ OpFunction (SpirId $ fName ++ "_f1_") floatTypeId FCNone floatToFloatTypeId
+    output $ OpFunction (SpirId $ fName ++ "_f1_f1_f1_f1_") floatTypeId FCNone floatToFloatTypeId
 
     renamedArgs <- mapM (\(SArg arg) -> (arg, ) <$> buildVar ((arg ++ "_")++)) fArgs
     forM_ renamedArgs (\(_, rArg) -> 
@@ -58,7 +58,7 @@ fnDefToSpir (SFnDef fName fArgs block labelled) = do
 labelledToSpir :: SLabelledBlock -> SpirM ()
 labelledToSpir (SLabelled l phiNodes block) = do
     l' <- getRenamedLabel l
-    varType <- gets $ flip (Map.!) SpirFloat . _typeIds
+    varType <- gets $ flip (Map.!) SpirFloatParameter . _typeIds
     output $ OpLabel (SpirId l')
     renamedPhiVars <- forM phiNodes $ \(SPhiNode var args) -> do
         var'  <- nextVar
@@ -79,7 +79,8 @@ blockToSpir (SBlock stmts) = forM_ stmts stmtToSpir
 
 stmtToSpir :: SStmt -> SpirM ()
 stmtToSpir (SAssign var expr) = do
-    var' <- nextVar
+    -- var' <- nextVar  CAN BE FORWARD REFERENCED!
+    var' <- getRenamedVar var
     floatParamType <- gets $ flip (Map.!) SpirFloatParameter . _typeIds
     tmp  <- exprToSpir expr
     output $ OpVariable (SpirId var') floatParamType StorFunction
@@ -115,6 +116,7 @@ exprToSpir (SBinOp op e1 e2) = do
         OpMul -> OpFMul v floatType t1 t2
         OpSub -> OpFSub v floatType t1 t2
         OpDiv -> OpFDiv v floatType t1 t2
+        OpMod -> OpFMod v floatType t1 t2
         -- OpAnd -> OpLogicalAnd v boolType t1 t2
         -- OpOr -> OpLogicalOr v boolType t1 t2
         OpEq -> OpFOrdEqual v floatType t1 t2
@@ -161,7 +163,7 @@ initialStateEnv = StateEnv
         , (SpirFloatParameter, SpirId "_ptr_Function_float")
         , (floatToFloatFunType, SpirId "8")]
     , _renames = Map.empty
-    , _varSupply = [show i | i <- [(53 :: Int)..]] } --[(11 :: Int)..]] }
+    , _varSupply = [show i | i <- [(61 :: Int)..]] }
 
 floatToFloatFunType :: SpirType
 floatToFloatFunType = SpirFn SpirFloat [SpirFloatParameter]

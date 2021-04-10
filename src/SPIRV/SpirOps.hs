@@ -20,6 +20,7 @@ data SpirOp = OpFunction SpirId SpirId SpirFunctionControl SpirId
             | OpFSub SpirId SpirId SpirId SpirId
             | OpFMul SpirId SpirId SpirId SpirId
             | OpFDiv SpirId SpirId SpirId SpirId
+            | OpFMod SpirId SpirId SpirId SpirId
             | OpFOrdEqual SpirId SpirId SpirId SpirId
             | OpFOrdLessThan SpirId SpirId SpirId SpirId
             | OpLogicalAnd SpirId SpirId SpirId SpirId
@@ -65,6 +66,7 @@ instance Show SpirOp where
     show (OpFSub res resT a b) = showOpWithResult res "OpFSub" [resT, a, b]
     show (OpFMul res resT a b) = showOpWithResult res "OpFMul" [resT, a, b]
     show (OpFDiv res resT a b) = showOpWithResult res "OpFDiv" [resT, a, b]
+    show (OpFMod res resT a b) = showOpWithResult res "OpFMod" [resT, a, b]
     show (OpFOrdEqual res resT a b) = 
         showOpWithResult res "OpFOrdEqual" [resT, a, b]
     show (OpFOrdLessThan res resT a b) = 

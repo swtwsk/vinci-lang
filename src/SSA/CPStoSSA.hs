@@ -87,10 +87,10 @@ cExprToSSA (CPS.CAppFun f k args) = do
             output $ SGoto (SLabel k)
 cExprToSSA (CPS.CLetPrim x (CPS.CBinOp op) [a, b] cexpr) = do
     output $ SAssign x (SBinOp op (SVar a) (SVar b))
-    cExprToSSA cexpr
+    local (insertIntoVarSet x) $ cExprToSSA cexpr
 cExprToSSA (CPS.CLetPrim x (CPS.CUnOp op) [a] cexpr) = do
     output $ SAssign x (SUnOp op (SVar a))
-    cExprToSSA cexpr
+    local (insertIntoVarSet x) $ cExprToSSA cexpr
 cExprToSSA CPS.CLetPrim {} = undefined
 cExprToSSA (CPS.CIf x k1 k2) = output $ 
     SIf (SVar x) (SLabel k1) (SLabel k2)

@@ -1,0 +1,3 @@
+let prototype x y z t =
+  (x + t) % 2.0
+;;

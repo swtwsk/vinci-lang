@@ -27,7 +27,7 @@ data Lit = LFloat Double
 -- SHOWS
 instance Show Prog where
     show (Prog progName args expr) = 
-        "letfn " ++ progName ++ "(" ++ intercalate ", " args ++ ")" ++ show expr
+        "letfn " ++ progName ++ "(" ++ intercalate ", " args ++ ") = " ++ show expr
 
 instance Show Expr where
     show (Var n) = n

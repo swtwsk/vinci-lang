@@ -1,0 +1,5 @@
+let prototype x y z t =
+  letrec g x i =
+    if x < 0.2 then (if 1.0 < i then 1.0 else i) else g (x - 0.2) (i + 0.1)
+  in g x 0.0
+;;

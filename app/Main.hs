@@ -13,6 +13,7 @@ import qualified Frontend.AST as F
 import Frontend.TranspileAST (transpile)
 import SSA.CPStoSSA (cpsToSSA)
 import SPIRV.SSAtoSPIR (ssaToSpir)
+import SpirDemo (compileToDemoSpir)
 
 type ParseFun a = [Token] -> Either String a
 type FileName   = String
@@ -42,15 +43,18 @@ usage = do
         ]
     exitFailure
 
-data OutputType = Frontend | Core | CPS | SSA | SPIRV
+data OutputType = Frontend | Core | CPS | SSA | SPIRV | FullSPIRV
 
 compilationFunction :: OutputType -> (F.Program -> String)
 compilationFunction outputType = case outputType of
-    Frontend -> show
-    Core     -> show . frontendProgramToCore
-    CPS      -> \x -> show $ coreToCPS <$> frontendProgramToCore x
-    SSA      -> \x -> show $ cpsToSSA . coreToCPS <$> frontendProgramToCore x
-    SPIRV    -> \x -> show $ ssaToSpir . cpsToSSA . coreToCPS <$> frontendProgramToCore x
+    Frontend  -> show
+    Core      -> show . frontendProgramToCore
+    CPS       -> \x -> unlines $ show . coreToCPS <$> frontendProgramToCore x
+    SSA       -> \x -> unlines $ show . cpsToSSA . coreToCPS <$> frontendProgramToCore x
+    SPIRV     -> \x -> unlines $ unlines . fmap show . ssaToSpir . cpsToSSA . coreToCPS <$> frontendProgramToCore x
+    FullSPIRV -> \x -> 
+        let spir = head $ ssaToSpir . cpsToSSA . coreToCPS <$> frontendProgramToCore x in
+        compileToDemoSpir spir
 
 parseFile :: OutputType -> FileName -> IO ()
 parseFile outputType filename = do
@@ -72,4 +76,5 @@ main = do
         "-c":fs    -> mapM_ (parseFile Core) fs
         "-k":fs    -> mapM_ (parseFile CPS) fs
         "-s":fs    -> mapM_ (parseFile SSA) fs
-        fs         -> mapM_ (parseFile SPIRV) fs
+        "-v":fs    -> mapM_ (parseFile SPIRV) fs
+        fs         -> mapM_ (parseFile FullSPIRV) fs

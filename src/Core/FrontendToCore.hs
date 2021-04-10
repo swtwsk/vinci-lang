@@ -1,18 +1,29 @@
-module Core.FrontendToCore where
+module Core.FrontendToCore (
+    frontendProgramToCore,
+    frontendLineToCore
+) where
 
 import qualified Frontend.AST as F
 import Core.Ops
 import Core.AST
 
--- import Control.Monad
--- import Control.Monad.Writer
--- import Data.DList ( DList, toList )
--- import Utils.DList (output)
-
--- type CoreM = Writer (DList Expr)
-
 frontendProgramToCore :: F.Program -> [Prog]
-frontendProgramToCore (F.Prog _phrases) = undefined
+frontendProgramToCore (F.Prog phrases) = phrases >>= phraseToCore
+
+frontendLineToCore :: F.Line -> [Prog]
+frontendLineToCore (F.Line phrase) = phraseToCore phrase
+
+-- it shouldn't be Prog
+phraseToCore :: F.Phrase -> [Prog]
+phraseToCore (F.Value letdef) = case letdef of
+    F.Let binds -> fmap bindToProg binds
+    F.LetRec _binds -> undefined
+    where
+        bindToProg :: F.LetBind -> Prog
+        bindToProg (F.ProcBind name vis _resType e) = 
+            Prog name (extractName <$> vis) (exprToCore e)
+        bindToProg F.ConstBind {} = undefined
+phraseToCore _ = undefined
 
 exprToCore :: F.Expr -> Expr
 exprToCore (F.EId var) = Var var
@@ -24,6 +35,7 @@ exprToCore (F.ENeg e) = unOpToCore OpNeg e
 exprToCore (F.ENot e) = unOpToCore OpNot e
 exprToCore (F.EMul e1 e2) = binOpToCore OpMul e1 e2
 exprToCore (F.EDiv e1 e2) = binOpToCore OpDiv e1 e2
+exprToCore (F.EMod e1 e2) = binOpToCore OpMod e1 e2
 exprToCore (F.EAdd e1 e2) = binOpToCore OpAdd e1 e2
 exprToCore (F.ESub e1 e2) = binOpToCore OpSub e1 e2
 exprToCore (F.ELTH e1 e2) = binOpToCore OpLT e1 e2
@@ -51,7 +63,6 @@ exprToCore (F.ETuple _exprs) = undefined
 exprToCore (F.EInt _i) = undefined
 exprToCore (F.EFieldGet _expr _field) = undefined
 exprToCore (F.ETyped _expr _type) = undefined
-exprToCore (F.EMod _e1 _e2) = undefined
 exprToCore (F.ECons _fields) = undefined
 exprToCore (F.ENamedCons _name _fields) = undefined
 
