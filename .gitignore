@@ -4,3 +4,7 @@
 *.hi
 *.o
 *.bak
+
+# SPIR-V binary files
+*.spv
+*.spvasm
