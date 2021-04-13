@@ -12,19 +12,18 @@ import qualified CPS.AST as CPS
 type RecDependentMap = Map.Map String Bool
 type TranslateM = ReaderT RecDependentMap (VarSupply (String, String))
 
-type CCont = String -> TranslateM CPS.CExpr
-type CVar  = String
+type CCont = CPS.Var -> TranslateM CPS.CExpr
 
-coreToCPS :: Core.Prog -> CPS.CProg
+coreToCPS :: Core.Prog -> CPS.CFunDef
 coreToCPS prog = evalVarSupply (runReaderT (coreToCPS' prog) Map.empty) supp
     where
         supp = [("k" ++ show x, "x" ++ show x) | x <- [(0 :: Int) ..]]
 
-coreToCPS' :: Core.Prog -> TranslateM CPS.CProg
+coreToCPS' :: Core.Prog -> TranslateM CPS.CFunDef
 coreToCPS' (Core.Prog progName args expr) = do
     (kName, _) <- nextVar
     expr' <- coreExprToCPSWithCont expr kName
-    return $ CPS.CProcLam progName kName args expr'
+    return $ CPS.CFunDef progName kName args expr'
 
 coreExprToCPS :: Core.Expr -> CCont -> TranslateM CPS.CExpr
 coreExprToCPS (Core.Var x) k = k x
@@ -34,16 +33,13 @@ coreExprToCPS e@Core.App {} k = do
     let (f, args) = aggregateApplications e
     coreExprToCPS f $ \fn -> 
         CPS.CLetCont kName xName kApplied <$> coreExprRec fn args [] kName
-    -- coreExprToCPS f $ \fn -> coreExprRec fn args [] (kName, xName) kApplied
-    -- where
-    --     coreExprRec :: CVar -> [Core.Expr] -> [CVar] -> (CVar, CVar) -> CPS.CExpr -> TranslateM CPS.CExpr
-    --     coreExprRec fn (h:t) vars kXs kApplied         = coreExprToCPS h (\x -> coreExprRec fn t (x:vars) kXs kApplied)
-    --     coreExprRec fn [] vars (kName, xName) kApplied = return $ CPS.CLetCont kName xName kApplied $ CPS.CAppFun fn kName (reverse vars)
 coreExprToCPS (Core.Lam n e) k = do
     (kName, fName) <- nextVar
     kApplied <- k fName
     e' <- coreExprToCPSWithCont e kName
-    return $ CPS.CLetVal fName (CPS.CLamCont kName n e') kApplied
+    -- todo: aggregate Lam a (Lam b (...)) as fn a b c ...
+    --       or just don't unroll it in the first place?
+    return $ CPS.CLetFun (CPS.CFunDef fName kName [n] e') kApplied
 coreExprToCPS (Core.Let n e1 e2) k = do
     (jName, _) <- nextVar
     e1' <- coreExprToCPSWithCont e1 jName
@@ -80,7 +76,7 @@ coreExprToCPS (Core.BinOp op e1 e2) k = do
     coreExprToCPS e1 k1
 coreExprToCPS _ _ = undefined
 
-coreExprToCPSWithCont :: Core.Expr -> CVar -> TranslateM CPS.CExpr
+coreExprToCPSWithCont :: Core.Expr -> CPS.CVar -> TranslateM CPS.CExpr
 coreExprToCPSWithCont (Core.Var x) k = return $ CPS.CAppCont k x
 coreExprToCPSWithCont e@Core.App {} k = do
     let (f, args) = aggregateApplications e
@@ -131,6 +127,6 @@ aggregateApplications (Core.App e1@Core.App {} e2) =
 aggregateApplications (Core.App e1 e2) = (e1, [e2])
 aggregateApplications e = (e, [])
 
-coreExprRec :: CVar -> [Core.Expr] -> [CVar] -> CVar -> TranslateM CPS.CExpr
+coreExprRec :: CPS.CVar -> [Core.Expr] -> [CPS.CVar] -> CPS.CVar -> TranslateM CPS.CExpr
 coreExprRec fn (h:t) vars kName = coreExprToCPS h (\x -> coreExprRec fn t (x:vars) kName)
 coreExprRec fn [] vars kName    = return $ CPS.CAppFun fn kName (reverse vars)

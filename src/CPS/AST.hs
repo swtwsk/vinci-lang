@@ -7,26 +7,28 @@ import qualified Data.Map as Map
 import Core.Ops (BinOp, UnOp)
 import Utils.VarSupply (VarSupply, evalVarSupply, nextVar)
 
-data CExpr = CLetVal String CVal CExpr                  -- letval x = V in K
-           | CLetCont String String CExpr CExpr         -- letcont k x = K in K'
-           | CAppCont String String                     -- k x
-           | CAppFun String String [String]             -- f k xs
-           | CLetPrim String CPrimOp [String] CExpr     -- letprim x = PrimOp [y] in K
-           | CIf String String String                   -- if x then k1 else k2
-           | CLetFix String String [String] CExpr CExpr -- letfix f k x = K in K'
-           | CExit String                               -- end continuation
+type Var  = String
+type CVar = String
+
+data CExpr = CLetVal Var CVal CExpr             -- letval x = V in K
+           | CLetCont CVar Var CExpr CExpr      -- letcont k x = K in K'
+           | CLetFun CFunDef CExpr              -- letfun F in K
+           | CAppCont CVar Var                  -- k x
+           | CAppFun Var CVar [Var]             -- f k xs
+           | CLetPrim Var CPrimOp [Var] CExpr   -- letprim x = PrimOp [y] in K
+           | CIf Var CVar CVar                  -- if x then k1 else k2
+           | CLetFix Var CVar [Var] CExpr CExpr -- letfix f k x = K in K'
            deriving Eq
 
 data CVal = CLitFloat Double
-          | CLamCont String String CExpr  -- \k x -> K
+          | CLamCont CVar Var CExpr  -- \k x -> K
           deriving Eq
 
 data CPrimOp = CBinOp BinOp 
              | CUnOp UnOp
              deriving Eq
 
-data CProg = CProcLam String String [String] CExpr -- letproc proc k (args*) = E
---            | CJumpLam [String] CExpr
+data CFunDef = CFunDef Var CVar [Var] CExpr -- letproc proc k (args*) = E
            deriving Eq
 
 -- ALPHA EQUALITIES
@@ -58,6 +60,11 @@ instance AlphaEq CExpr where
         c1Eq <- local (const c1Maps) $ c11 `alphaReq` c12
         c2Eq <- local (const c2Maps) $ c21 `alphaReq` c22
         return $ c1Eq && c2Eq
+    (CLetFun (CFunDef f1 _ _ _) c1) `alphaReq` (CLetFun (CFunDef f2 _ _ _) c2) = do
+        (varMap1, varMap2) <- ask
+        newF <- nextVar
+        let newMap = (Map.insert f1 newF varMap1, Map.insert f2 newF varMap2)
+        local (const newMap) $ c1 `alphaReq` c2
     (CAppCont k1 x1) `alphaReq` (CAppCont k2 x2) = do
         kEq <- asks $ lookupEquality k1 k2
         xEq <- asks $ lookupEquality x1 x2
@@ -96,7 +103,6 @@ instance AlphaEq CExpr where
         c1Eq <- local (const (newMap1, newMap2)) $ c11 `alphaReq` c12
         c2Eq <- local (const newMapc2) $ c21 `alphaReq` c22
         return $ xLenEq && c1Eq && c2Eq
-    (CExit x1) `alphaReq` (CExit x2) = asks $ lookupEquality x1 x2
     _ `alphaReq` _ = return False
 
 instance AlphaEq CVal where
@@ -109,16 +115,17 @@ instance AlphaEq CVal where
         local (const (newMap1, newMap2)) $ c1 `alphaReq` c2
     _ `alphaReq` _ = return False
 
-instance AlphaEq CProg where
-    (CProcLam _ k1 args1 c1) `alphaReq` (CProcLam _ k2 args2 c2) = do
+instance AlphaEq CFunDef where
+    (CFunDef f1 k1 args1 c1) `alphaReq` (CFunDef f2 k2 args2 c2) = do
         (varMap1, varMap2) <- ask
-        newK <- nextVar
+        (newF, newK) <- mzip nextVar nextVar
         let argsLen = length args1
             argsLenEq = length args1 == length args2
         newArgs <- replicateM argsLen nextVar
-        let mapFold = foldl (\acc (a, b) -> Map.insert a b acc)
-            newMap1 = Map.insert k1 newK $ mapFold varMap1 $ zip args1 newArgs
-            newMap2 = Map.insert k2 newK $ mapFold varMap2 $ zip args2 newArgs
+        let newMap1 = Map.insert f1 newF $ Map.insert k1 newK $ 
+                Map.union (Map.fromList $ zip args1 newArgs) varMap1
+            newMap2 = Map.insert f2 newF $ Map.insert k2 newK $ 
+                Map.union (Map.fromList $ zip args2 newArgs) varMap2
         cEq <- local (const (newMap1, newMap2)) $ c1 `alphaReq` c2
         return $ argsLenEq && cEq
 
@@ -134,12 +141,12 @@ lookupEquality x1 x2 (varMap1, varMap2) = case (lookup1, lookup2) of
 instance Show CExpr where
     show (CLetVal x cval cexpr) = "letval " ++ x ++ " = (" ++ show cval ++ ") in " ++ show cexpr
     show (CLetCont k x c1 c2) = "letcont " ++ k ++ " " ++ x ++ " = (" ++ show c1 ++ ") in " ++ show c2
+    show (CLetFun f cexpr) = "letfun " ++ show f ++ " in " ++ show cexpr
     show (CAppCont k x) = k ++ " " ++ x
     show (CAppFun f k args) = f ++ " " ++ k ++ " " ++ unwords args ++ ")"
     show (CLetPrim x primOp args cexpr) = "letprim " ++ x ++ " = (" ++ show primOp ++ " " ++ unwords args ++ ") in " ++ show cexpr
     show (CIf x k1 k2) = "if " ++ x ++ " then " ++ k1 ++ " else " ++ k2
     show (CLetFix f k args c1 c2) = "letfix " ++ f ++ " " ++ k ++ " " ++ unwords args ++ " = (" ++ show c1 ++ ") in " ++ show c2
-    show (CExit x) = "Exit(" ++ x ++ ")"
 
 instance Show CVal where
     show (CLitFloat f) = show f
@@ -149,8 +156,6 @@ instance Show CPrimOp where
     show (CBinOp op) = show op
     show (CUnOp op)  = show op
 
-instance Show CProg where
-    show (CProcLam procName k args e) = 
-        "letproc " ++ procName ++ " " ++ k ++ " " ++ unwords args ++ " = " ++ show e
---     show (CJumpLam args e) =
---         "λjump(" ++ intercalate ", " args ++ ") -> " ++ show e
+instance Show CFunDef where
+    show (CFunDef procName k args e) = 
+        procName ++ " " ++ k ++ " " ++ unwords args ++ " = " ++ show e

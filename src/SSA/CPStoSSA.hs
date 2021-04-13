@@ -36,8 +36,8 @@ data StateEnv = StateEnv { _untranspiledJumps :: [(Label, JumpCont, ReaderEnv)]
 
 type TranspileT = RWS ReaderEnv StmtList StateEnv
 
-cpsToSSA :: CPS.CProg -> SFnDef
-cpsToSSA (CPS.CProcLam fName k args expr) = 
+cpsToSSA :: CPS.CFunDef -> SFnDef
+cpsToSSA (CPS.CFunDef fName k args expr) = 
     SFnDef fName args' (SBlock $ toList blockExprs) labelled'
     where
         args' = SArg <$> args
@@ -58,6 +58,7 @@ cExprToSSA (CPS.CLetVal _x (CPS.CLamCont k y c1) c2) = do
     let jumps' = (k, ReturnJumpCont [y] c1, closure):jumps
     modify (\ts -> ts { _untranspiledJumps = jumps' })
     local (insertContType k ReturnCont) $ cExprToSSA c2
+cExprToSSA (CPS.CLetFun _fdef _cexpr) = undefined
 cExprToSSA (CPS.CLetCont k x c1 c2) = do
     jumps <- gets _untranspiledJumps
     closure <- ask
@@ -100,7 +101,6 @@ cExprToSSA (CPS.CLetFix f k args c1 c2) = do
     let jumps' = (f, RecCont k args c1, closure):jumps
     modify (\ts -> ts { _untranspiledJumps = jumps' })
     cExprToSSA c2
-cExprToSSA (CPS.CExit _) = undefined
 
 evalJumpsToSSA :: StateEnv -> (StateEnv, [SLabelledBlock])
 evalJumpsToSSA ts = case _untranspiledJumps ts of
