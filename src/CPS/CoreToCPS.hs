@@ -7,6 +7,7 @@ import qualified Data.Map as Map
 import Utils.VarSupply (VarSupply, evalVarSupply, nextVar)
 
 import qualified Core.AST as Core
+import Core.Utils (aggregateApplications)
 import qualified CPS.AST as CPS
 
 type RecDependentMap = Map.Map String Bool
@@ -20,7 +21,7 @@ coreToCPS prog = evalVarSupply (runReaderT (coreToCPS' prog) Map.empty) supp
         supp = [("k" ++ show x, "x" ++ show x) | x <- [(0 :: Int) ..]]
 
 coreToCPS' :: Core.Prog -> TranslateM CPS.CFunDef
-coreToCPS' (Core.Prog progName args expr) = do
+coreToCPS' (Core.Prog _isRec progName args expr) = do
     (kName, _) <- nextVar
     expr' <- coreExprToCPSWithCont expr kName
     return $ CPS.CFunDef progName kName args expr'
@@ -58,7 +59,12 @@ coreExprToCPS (Core.Lit (Core.LFloat f)) k = do
     (_, xName) <- nextVar
     kApplied <- k xName
     return $ CPS.CLetVal xName (CPS.CLitFloat f) kApplied
-coreExprToCPS (Core.LetRec f args e1 e2) k = do
+coreExprToCPS (Core.LetFun (Core.Prog Core.NonRec f args e1) e2) k = do
+    (kName, _) <- nextVar
+    e1' <- coreExprToCPSWithCont e1 kName
+    e2' <- coreExprToCPS e2 k
+    return $ CPS.CLetFun (CPS.CFunDef f kName args e1') e2'
+coreExprToCPS (Core.LetFun (Core.Prog Core.Rec f args e1) e2) k = do
     (kName, _) <- nextVar
     e1' <- coreExprToCPSWithCont e1 kName
     e2' <- coreExprToCPS e2 k
@@ -100,7 +106,12 @@ coreExprToCPSWithCont (Core.If cond e1 e2) k = do
 coreExprToCPSWithCont (Core.Lit (Core.LFloat f)) k = do
     (_, xName) <- nextVar
     return $ CPS.CLetVal xName (CPS.CLitFloat f) (CPS.CAppCont k xName)
-coreExprToCPSWithCont (Core.LetRec f args e1 e2) k = do
+coreExprToCPSWithCont (Core.LetFun (Core.Prog Core.NonRec f args e1) e2) k = do
+    (jName, _) <- nextVar
+    e1' <- coreExprToCPSWithCont e1 jName
+    e2' <- coreExprToCPSWithCont e2 k
+    return $ CPS.CLetFun (CPS.CFunDef f jName args e1') e2'
+coreExprToCPSWithCont (Core.LetFun (Core.Prog Core.Rec f args e1) e2) k = do
     (jName, _) <- nextVar
     e1' <- coreExprToCPSWithCont e1 jName
     e2' <- coreExprToCPSWithCont e2 k
@@ -117,15 +128,6 @@ coreExprToCPSWithCont (Core.BinOp op e1 e2) k = do
         k1 z1 = coreExprToCPS e2 $ k2 z1
     coreExprToCPS e1 k1
 coreExprToCPSWithCont _ _ = undefined
-
--- (...((f x1) x2) ... xn) = (f, [x1, ..., xn])
--- (f x1) (g x2) = (f x1, [g x2])
-aggregateApplications :: Core.Expr -> (Core.Expr, [Core.Expr])
-aggregateApplications (Core.App e1@Core.App {} e2) = 
-    let (fn, args) = aggregateApplications e1 in
-    (fn, args ++ [e2])
-aggregateApplications (Core.App e1 e2) = (e1, [e2])
-aggregateApplications e = (e, [])
 
 coreExprRec :: CPS.CVar -> [Core.Expr] -> [CPS.CVar] -> CPS.CVar -> TranslateM CPS.CExpr
 coreExprRec fn (h:t) vars kName = coreExprToCPS h (\x -> coreExprRec fn t (x:vars) kName)

@@ -1,5 +1,6 @@
 module SSA.Interpreter where
 
+import Control.Monad.Reader
 import Control.Monad.Except
 import Control.Monad.State
 import Data.Bifunctor
@@ -9,24 +10,34 @@ import Core.Ops
 import SSA.AST
 
 type Err = String
-data StateEnv = StateEnv { _values   :: Map.Map String Value
-                         , _labelled :: Map.Map SLabel SLabelledBlock
+type FunctionsMap = Map.Map String SFnDef
+data StateEnv = StateEnv { _values    :: Map.Map String Value
+                         , _labelled  :: Map.Map SLabel SLabelledBlock
                          , _currentLabel :: SLabel }
-type SSAM = StateT StateEnv (Except Err)
+type SSAM = ReaderT FunctionsMap (StateT StateEnv (Except Err))
 
 data Value = VFloat Double
            | VBool Bool
-        --    | VFun [String] 
            deriving Eq
 
-run :: SFnDef -> [Double] -> Either Err Value
-run (SFnDef fName fArgs block labelled) args = case run' of
+run :: [SFnDef] -> String -> [Double] -> Either Err Value
+run defs mainName args = case run'' of
     Right (Just v) -> Right v
     Right Nothing -> Left "No value returned"
     Left err -> Left err
     where
-        run' = runExcept (evalStateT (runBlock block) st)
-        valuesList = (\(SArg arg, f) -> (arg, VFloat f)) <$> zip fArgs args
+        run'' = runExcept (evalStateT (runReaderT (run' main args') funs) st)
+        funs  = Map.fromList $ fmap (\f@(SFnDef fName _ _ _) -> (fName, f)) defs
+        main  = funs Map.! mainName
+        args' = VFloat <$> args
+        st = StateEnv { _values = Map.empty
+                      , _labelled = Map.empty
+                      , _currentLabel = SLabel $ mainName ++ "_init" }
+
+run' :: SFnDef -> [Value] -> SSAM (Maybe Value)
+run' (SFnDef fName fArgs block labelled) args = put st >> runBlock block
+    where
+        valuesList = (\(SArg arg, f) -> (arg, f)) <$> zip fArgs args
         labelled' = (\lb@(SLabelled l _ _) -> (l, lb)) <$> labelled
         st = StateEnv { _values = Map.fromList valuesList
                       , _labelled = Map.fromList labelled'
@@ -73,7 +84,13 @@ runExpr (SVar var) = do
     values <- gets _values
     let value = Map.lookup var values
     maybe (throwError $ "Unbound variable " ++ var) return value
-runExpr (SApp _f _args) = undefined
+runExpr (SApp f args) = do
+    oldState <- get
+    fDef <- asks (Map.! f)
+    let argsVal = (_values oldState Map.!) <$> args
+    val  <- run' fDef argsVal
+    put oldState
+    maybe (throwError $ f ++ " hasn't returned anything") return val
 runExpr (SBinOp op e1 e2) = do
     e1' <- runExpr e1
     e2' <- runExpr e2

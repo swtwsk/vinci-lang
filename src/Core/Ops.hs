@@ -9,11 +9,11 @@ data BinOp = OpAdd
            | OpOr
            | OpEq
            | OpLT
-           deriving Eq
+           deriving (Eq, Ord)
 
 data UnOp = OpNeg 
           | OpNot
-          deriving Eq
+          deriving (Eq, Ord)
 
 instance Show BinOp where
     show op = case op of

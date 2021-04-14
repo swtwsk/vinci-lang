@@ -3,10 +3,9 @@ module SSA.CPStoSSA (cpsToSSA) where
 
 import Control.Monad.RWS
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 import Data.DList (DList, toList)
 import Data.Bifunctor
-import Data.Maybe (fromMaybe, isJust)
+import Data.Maybe (fromMaybe)
 
 import qualified CPS.AST as CPS
 import SSA.AST
@@ -17,17 +16,14 @@ type Label = String
 type StmtList = DList SStmt
 
 data ContType = ReturnCont
-              | RecReturnCont String -- function name
+              | RecReturnCont String
               deriving Eq
 type ContTypeMap = Map.Map String ContType
-type VarSet = Set.Set String
 type PhiMap = Map.Map Label [[(Label, String)]]  -- label: [_1 <- [(l, s)], ...]
 data JumpCont = LocalCont [String] CPS.CExpr
               | ReturnJumpCont [String] CPS.CExpr
-              | RecCont String [String] CPS.CExpr
 
 data ReaderEnv = ReaderEnv { _contTypeMap  :: ContTypeMap
-                           , _variables    :: VarSet
                            , _currentLabel :: Label }
 
 data StateEnv = StateEnv { _untranspiledJumps :: [(Label, JumpCont, ReaderEnv)]
@@ -38,27 +34,29 @@ type TranspileT = RWS ReaderEnv StmtList StateEnv
 
 cpsToSSA :: CPS.CFunDef -> SFnDef
 cpsToSSA (CPS.CFunDef fName k args expr) = 
-    SFnDef fName args' (SBlock $ toList blockExprs) labelled'
+    SFnDef fName args' (SBlock [SGoto $ SLabel initLabel2]) labelled'
     where
         args' = SArg <$> args
-        r = ReaderEnv { _contTypeMap = Map.singleton k ReturnCont
-                      , _variables = Set.fromList args
-                      , _currentLabel = fName ++ "_init" }
-        (st, blockExprs) = execRWS (cExprToSSA expr) r emptyState
+        initLabel = fName ++ "_init"
+        initLabel2 = initLabel ++ "2"
+        initPhis = (\arg -> [(initLabel, arg)]) <$> args
+        r = ReaderEnv { _contTypeMap = Map.singleton k (RecReturnCont fName)
+                      , _currentLabel = initLabel }
+        st = emptyState { _untranspiledJumps = [(initLabel2, ReturnJumpCont args expr, r)]
+                        , _phiValues = Map.singleton initLabel2 initPhis }
         (endState, labelled) = evalJumpsToSSA st
         labelled' = updatePhiNodes labelled endState
 
 cExprToSSA :: CPS.CExpr -> TranspileT ()
 cExprToSSA (CPS.CLetVal x (CPS.CLitFloat f) cexpr) = do
     output $ SAssign x (SLitFloat f)
-    local (insertIntoVarSet x) $ cExprToSSA cexpr
+    cExprToSSA cexpr
 cExprToSSA (CPS.CLetVal _x (CPS.CLamCont k y c1) c2) = do
     jumps <- gets _untranspiledJumps
     closure <- ask
     let jumps' = (k, ReturnJumpCont [y] c1, closure):jumps
     modify (\ts -> ts { _untranspiledJumps = jumps' })
     local (insertContType k ReturnCont) $ cExprToSSA c2
-cExprToSSA (CPS.CLetFun _fdef _cexpr) = undefined
 cExprToSSA (CPS.CLetCont k x c1 c2) = do
     jumps <- gets _untranspiledJumps
     closure <- ask
@@ -66,53 +64,55 @@ cExprToSSA (CPS.CLetCont k x c1 c2) = do
     modify (\ts -> ts { _untranspiledJumps = jumps' })
     cExprToSSA c2
 cExprToSSA (CPS.CAppCont k x) = do
-    isVarBounded <- asks (Set.member x . _variables)
-    isReturnBounded <- isJust <$> asks (Map.lookup k . _contTypeMap)
-    if isReturnBounded && isVarBounded
-        then output $ SReturn (SVar x)
-        else updatePhiAndGoto k [x]
+    isReturnBounded <- asks (Map.lookup k . _contTypeMap)
+    case isReturnBounded of
+        Just _  -> output $ SReturn (SVar x)
+        Nothing -> updatePhiAndGoto k [x]
 cExprToSSA (CPS.CAppFun f k args) = do
     contMap <- asks _contTypeMap
     case Map.lookup k contMap of
-        Just ReturnCont -> updatePhiAndGoto f args -- + phiNode f_arg1 -> x
+        Just ReturnCont -> callFnAndReturn
         Just (RecReturnCont g) ->
             if f == g
-            then updatePhiAndGoto f args -- + phiNode f_arg1 -> x
-            else callFnAndJump -- + phiNode k_f_arg1 -> x
+            then updatePhiAndGoto (f ++ "_init2") args -- + phiNode f_arg1 -> x
+            else callFnAndReturn
         Nothing -> callFnAndJump -- + phiNode k_f_arg1 -> x
     where
-        callFnAndJump = do
+        callFn = do
             v <- nextVar
             output $ SAssign v (SApp f args)
+            return v
+        callFnAndReturn = callFn >>= output .SReturn . SVar
+        callFnAndJump = do
+            v <- callFn
             updatePhiAndGoto k [v]
-            output $ SGoto (SLabel k)
 cExprToSSA (CPS.CLetPrim x (CPS.CBinOp op) [a, b] cexpr) = do
     output $ SAssign x (SBinOp op (SVar a) (SVar b))
-    local (insertIntoVarSet x) $ cExprToSSA cexpr
+    cExprToSSA cexpr
 cExprToSSA (CPS.CLetPrim x (CPS.CUnOp op) [a] cexpr) = do
     output $ SAssign x (SUnOp op (SVar a))
-    local (insertIntoVarSet x) $ cExprToSSA cexpr
+    cExprToSSA cexpr
 cExprToSSA CPS.CLetPrim {} = undefined
 cExprToSSA (CPS.CIf x k1 k2) = output $ 
     SIf (SVar x) (SLabel k1) (SLabel k2)
-cExprToSSA (CPS.CLetFix f k args c1 c2) = do
-    jumps <- gets _untranspiledJumps
-    closure <- ask
-    let jumps' = (f, RecCont k args c1, closure):jumps
-    modify (\ts -> ts { _untranspiledJumps = jumps' })
-    cExprToSSA c2
+cExprToSSA (CPS.CLetFun _fdef _cexpr) = undefined
+cExprToSSA (CPS.CLetFix _f _k _args _c1 _c2) = undefined
+-- cExprToSSA (CPS.CLetFix f k args c1 c2) = do
+--     jumps <- gets _untranspiledJumps
+--     closure <- ask
+--     let jumps' = (f, RecCont k args c1, closure):jumps
+--     modify (\ts -> ts { _untranspiledJumps = jumps' })
+--     cExprToSSA c2
 
 evalJumpsToSSA :: StateEnv -> (StateEnv, [SLabelledBlock])
 evalJumpsToSSA ts = case _untranspiledJumps ts of
     (l, cont, r):t ->
-        let (expr', args', r') = case cont of
-                LocalCont args expr -> (expr, args, r)
-                ReturnJumpCont args expr -> (expr, args, insertContType l ReturnCont r)
-                RecCont fCont args expr -> (expr, args, insertContType fCont (RecReturnCont l) r)
-            newVars = (\s -> foldl (flip Set.insert) s args') $ _variables r'
-            r'' = r' { _variables = newVars, _currentLabel = l }
+        let (expr', args') = case cont of
+                LocalCont args expr -> (expr, args)
+                ReturnJumpCont args expr -> (expr, args)
+            r'  = r { _currentLabel = l }
             ts' = ts { _untranspiledJumps = t }
-            (newTs, blockExprs) = execRWS (cExprToSSA expr') r'' ts'
+            (newTs, blockExprs) = execRWS (cExprToSSA expr') r' ts'
             emptyPhiNodes = (`SPhiNode` []) <$> args'
             (tailState, tailBlocks) = evalJumpsToSSA newTs in
         (tailState, SLabelled (SLabel l) emptyPhiNodes (SBlock $ toList blockExprs) : tailBlocks)
@@ -147,12 +147,6 @@ nextVar = do
 insertContType :: String -> ContType -> ReaderEnv -> ReaderEnv
 insertContType k contType tr = 
     tr { _contTypeMap = Map.insert k contType $ _contTypeMap tr }
-
-insertIntoVarSet :: String -> ReaderEnv -> ReaderEnv
-insertIntoVarSet var tr = tr { _variables = Set.insert var $ _variables tr }
-
--- updateCurrentLabel :: Label -> ReaderEnv -> ReaderEnv
--- updateCurrentLabel l tr = tr { _currentLabel = l }
 
 -- State
 emptyState :: StateEnv

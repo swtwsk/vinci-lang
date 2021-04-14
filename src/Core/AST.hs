@@ -6,8 +6,10 @@ import Core.Ops (BinOp(..), UnOp(..))
 
 type Name = String
 
-data Prog = Prog Name [Name] Expr
-          deriving Eq
+data ProgType = NonRec | Rec deriving (Eq, Ord)
+
+data Prog = Prog ProgType Name [Name] Expr
+          deriving (Eq, Ord)
 
 data Expr = Var Name
           | Lam Name Expr
@@ -15,19 +17,19 @@ data Expr = Var Name
           | App Expr Expr
           | If Expr Expr Expr
           | Let Name Expr Expr
-          | LetRec Name [Name] Expr Expr
+          | LetFun Prog Expr
           | BinOp BinOp Expr Expr
           | UnOp UnOp Expr
-          deriving Eq
+          deriving (Eq, Ord)
 
 data Lit = LFloat Double
          | LBool Bool -- later LInt
-         deriving Eq
+         deriving (Eq, Ord)
 
 -- SHOWS
 instance Show Prog where
-    show (Prog progName args expr) = 
-        "letfn " ++ progName ++ "(" ++ intercalate ", " args ++ ") = " ++ show expr
+    show (Prog _progType progName args expr) = 
+        "fn " ++ progName ++ "(" ++ intercalate ", " args ++ ") = " ++ show expr
 
 instance Show Expr where
     show (Var n) = n
@@ -37,8 +39,8 @@ instance Show Expr where
     show (If cond e1 e2) = "if " ++ show cond ++ " then " ++ show e1 ++ 
         " else " ++ show e2
     show (Let n e1 e2) = "let " ++ show n ++ " = " ++ show e1 ++ " in " ++ show e2
-    show (LetRec f args e1 e2) = 
-        "letrec " ++ f ++ "(" ++ intercalate "," args ++ ") = " ++ show e1 ++ " in " ++ show e2
+    show (LetFun prog@(Prog progType _ _ _) e2) = slet ++ show prog ++ " in " ++ show e2
+        where slet = case progType of { NonRec -> "let" ; Rec -> "letrec" } ++ " "
     show (BinOp op e1 e2) = show e1 ++ " " ++ show op ++ " " ++ show e2
     show (UnOp op e) = show op ++ " " ++ show e
 

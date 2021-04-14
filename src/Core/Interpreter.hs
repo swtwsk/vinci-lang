@@ -18,7 +18,7 @@ data Value = VFloat Double
            deriving (Eq)
 
 eval :: Prog -> Either Err Value
-eval (Prog _ args e) = runExcept $ runReaderT (eval' e') Map.empty
+eval (Prog _ _ args e) = runExcept $ runReaderT (eval' e') Map.empty
     where
         e' = foldr Lam e args
 
@@ -48,7 +48,11 @@ eval' (If cond e1 e2) = do
 eval' (Let n e1 e2) = do
     e1' <- eval' e1
     local (Map.insert n e1') (eval' e2)
-eval' (LetRec f args e1 e2) = do
+eval' (LetFun (Prog NonRec f args e1) e2) = do
+    let e1' = foldr Lam e1 args
+    e1'' <- eval' e1'
+    local (Map.insert f e1'') (eval' e2)
+eval' (LetFun (Prog Rec f args e1) e2) = do
     env <- ask
     let e1' = foldr Lam e1 args
     e1'' <- local (Map.insert f (VFixed f e1' env)) (eval' e1')

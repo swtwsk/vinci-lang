@@ -13,6 +13,7 @@ type CVar = String
 data CExpr = CLetVal Var CVal CExpr             -- letval x = V in K
            | CLetCont CVar Var CExpr CExpr      -- letcont k x = K in K'
            | CLetFun CFunDef CExpr              -- letfun F in K
+        --    | CLetRec CFunDef CExpr
            | CAppCont CVar Var                  -- k x
            | CAppFun Var CVar [Var]             -- f k xs
            | CLetPrim Var CPrimOp [Var] CExpr   -- letprim x = PrimOp [y] in K

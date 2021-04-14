@@ -1,6 +1,5 @@
 module Core.FrontendToCore (
     frontendProgramToCore,
-    frontendLineToCore
 ) where
 
 import qualified Frontend.AST as F
@@ -10,9 +9,6 @@ import Core.AST
 frontendProgramToCore :: F.Program -> [Prog]
 frontendProgramToCore (F.Prog phrases) = phrases >>= phraseToCore
 
-frontendLineToCore :: F.Line -> [Prog]
-frontendLineToCore (F.Line phrase) = phraseToCore phrase
-
 -- it shouldn't be Prog
 phraseToCore :: F.Phrase -> [Prog]
 phraseToCore (F.Value letdef) = case letdef of
@@ -21,7 +17,7 @@ phraseToCore (F.Value letdef) = case letdef of
     where
         bindToProg :: F.LetBind -> Prog
         bindToProg (F.ProcBind name vis _resType e) = 
-            Prog name (extractName <$> vis) (exprToCore e)
+            Prog NonRec name (extractName <$> vis) (exprToCore e)
         bindToProg F.ConstBind {} = undefined
 phraseToCore _ = undefined
 
@@ -75,7 +71,7 @@ letBindToCore (F.ProcBind pName lambdas _type e1) e2 = Let pName lambdas' e2
 
 letRecBindToCore :: F.LetBind -> Expr -> Expr
 letRecBindToCore (F.ProcBind pName lambdas _type e1) e2 =
-    LetRec pName (extractName <$> lambdas) (exprToCore e1) e2
+    LetFun (Prog Rec pName (extractName <$> lambdas) (exprToCore e1)) e2
 letRecBindToCore F.ConstBind {} _ = undefined
 
 -- FOR NOW

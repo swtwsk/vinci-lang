@@ -8,6 +8,7 @@ import Parser.LexVinci ( Token )
 import Parser.ParVinci ( pProgram, myLexer )
 
 import Core.FrontendToCore (frontendProgramToCore)
+import Core.LambdaLifting (lambdaLiftProg)
 import CPS.CoreToCPS (coreToCPS)
 import qualified Frontend.AST as F
 import Frontend.TranspileAST (transpile)
@@ -49,11 +50,11 @@ compilationFunction :: OutputType -> (F.Program -> String)
 compilationFunction outputType = case outputType of
     Frontend  -> show
     Core      -> show . frontendProgramToCore
-    CPS       -> \x -> unlines $ show . coreToCPS <$> frontendProgramToCore x
-    SSA       -> \x -> unlines $ show . cpsToSSA . coreToCPS <$> frontendProgramToCore x
-    SPIRV     -> \x -> unlines $ unlines . fmap show . ssaToSpir . cpsToSSA . coreToCPS <$> frontendProgramToCore x
+    CPS       -> \x -> unlines $ show . coreToCPS <$> (lambdaLiftProg =<< frontendProgramToCore x)
+    SSA       -> \x -> unlines $ show . cpsToSSA . coreToCPS <$> (lambdaLiftProg =<< frontendProgramToCore x)
+    SPIRV     -> \x -> unlines $ unlines . fmap show . ssaToSpir . cpsToSSA . coreToCPS <$> (lambdaLiftProg =<< frontendProgramToCore x)
     FullSPIRV -> \x -> 
-        let spir = head $ ssaToSpir . cpsToSSA . coreToCPS <$> frontendProgramToCore x in
+        let spir = head $ ssaToSpir . cpsToSSA . coreToCPS <$> (lambdaLiftProg =<< frontendProgramToCore x) in
         compileToDemoSpir spir
 
 parseFile :: OutputType -> FileName -> IO ()
