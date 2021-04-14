@@ -1,7 +1,7 @@
 module SPIRV.SpirOps where
 
 newtype SpirId = SpirId String  -- for now
-               deriving Eq
+               deriving (Eq, Ord)
 
 data SpirOp = OpFunction SpirId SpirId SpirFunctionControl SpirId
             | OpFunctionParameter SpirId SpirId
@@ -15,7 +15,9 @@ data SpirOp = OpFunction SpirId SpirId SpirFunctionControl SpirId
             | OpReturn
             | OpReturnValue SpirId
             | OpFunctionEnd
+            | OpFunctionCall SpirId SpirId SpirId [SpirId]
             | OpConstant SpirId SpirId SpirConst
+            | OpFNegate SpirId SpirId SpirId
             | OpFAdd SpirId SpirId SpirId SpirId
             | OpFSub SpirId SpirId SpirId SpirId
             | OpFMul SpirId SpirId SpirId SpirId
@@ -23,8 +25,17 @@ data SpirOp = OpFunction SpirId SpirId SpirFunctionControl SpirId
             | OpFMod SpirId SpirId SpirId SpirId
             | OpFOrdEqual SpirId SpirId SpirId SpirId
             | OpFOrdLessThan SpirId SpirId SpirId SpirId
-            | OpLogicalAnd SpirId SpirId SpirId SpirId
             | OpLogicalOr SpirId SpirId SpirId SpirId
+            | OpLogicalAnd SpirId SpirId SpirId SpirId
+            | OpLogicalNot SpirId SpirId SpirId
+
+            | OpTypeVoid SpirId
+            | OpTypeBool SpirId
+            | OpTypeInt SpirId Int Bool
+            | OpTypeFloat SpirId Int
+            | OpTypeVector SpirId SpirId Int
+            | OpTypePointer SpirId SpirStorageClass SpirId
+            | OpTypeFunction SpirId SpirId [SpirId]
             deriving Eq
 
 data SpirConst = SCFloat Double | SCBool Bool deriving Eq
@@ -32,7 +43,7 @@ data SpirConst = SCFloat Double | SCBool Bool deriving Eq
 data SpirFunctionControl = FCNone | FCInline | FCDontInline | FCPure | FCConst
                          deriving Eq
 
-data SpirStorageClass = StorFunction deriving Eq -- and other
+data SpirStorageClass = StorFunction deriving (Eq, Ord) -- and other
 
 -- SHOWS
 instance Show SpirId where
@@ -60,8 +71,11 @@ instance Show SpirOp where
     show OpReturn = "OpReturn"
     show (OpReturnValue arg) = "OpReturnValue " ++ show arg
     show OpFunctionEnd = "OpFunctionEnd"
+    show (OpFunctionCall res fType fName args) = 
+        showOpWithResult res "OpFunctionCall" (fType:fName:args)
     show (OpConstant res resType c) = 
         show res ++ " = OpConstant " ++ show resType ++ " " ++ show c
+    show (OpFNegate res resT x) = showOpWithResult res "OpFNegate" [resT, x]
     show (OpFAdd res resT a b) = showOpWithResult res "OpFAdd" [resT, a, b]
     show (OpFSub res resT a b) = showOpWithResult res "OpFSub" [resT, a, b]
     show (OpFMul res resT a b) = showOpWithResult res "OpFMul" [resT, a, b]
@@ -71,10 +85,24 @@ instance Show SpirOp where
         showOpWithResult res "OpFOrdEqual" [resT, a, b]
     show (OpFOrdLessThan res resT a b) = 
         showOpWithResult res "OpFOrdLessThan" [resT, a, b]
-    show (OpLogicalAnd res resT a b) = 
-        showOpWithResult res "OpLogicalAnd" [resT, a, b]
     show (OpLogicalOr res resT a b) = 
         showOpWithResult res "OpLogicalOr" [resT, a, b]
+    show (OpLogicalAnd res resT a b) = 
+        showOpWithResult res "OpLogicalAnd" [resT, a, b]
+    show (OpLogicalNot res resT x) = 
+        showOpWithResult res "OpLogicalNot" [resT, x]
+    show (OpTypeVoid res) = showOpWithResult res "OpTypeVoid" []
+    show (OpTypeBool res) = showOpWithResult res "OpTypeBool" []
+    show (OpTypeInt res width signed) = 
+        show res ++ " = OpTypeInt " ++ show width ++ " " ++
+        if signed then "1" else "0"
+    show (OpTypeFloat res width) = show res ++ " = OpTypeFloat " ++ show width 
+    show (OpTypeVector res t size) = 
+        show res ++ " = OpTypeVector " ++ show t ++ " " ++ show size
+    show (OpTypePointer res storage t) = 
+        show res ++ " = OpTypePointer " ++ show storage ++ " " ++ show t
+    show (OpTypeFunction res resT argTypes) = 
+        showOpWithResult res "OpTypeFunction" (resT:argTypes)
 
 showOpWithResult :: SpirId -> String -> [SpirId] -> String
 showOpWithResult resId opName args = show resId ++ " = " ++ opName ++ 

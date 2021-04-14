@@ -1,21 +1,11 @@
 module SpirDemo (compileToDemoSpir) where
 
-import Data.Bifunctor
-
 import SPIRV.SpirOps
 
-compileToDemoSpir :: [SpirOp] -> String
-compileToDemoSpir spir = 
-    unlines shaderPrologue ++ consts' ++ unlines shaderMain ++ fnOps'
-    where
-        (consts, fnOps) = extractConst spir
-        consts' = unlines $ show <$> consts
-        fnOps'  = unlines $ show <$> fnOps
-
-extractConst :: [SpirOp] -> ([SpirOp], [SpirOp])
-extractConst (c@OpConstant {}:t) = first (c:) $ extractConst t
-extractConst (h:t) = second (h:) $ extractConst t
-extractConst [] = ([], [])
+compileToDemoSpir :: [SpirOp] -> [SpirOp] -> String
+compileToDemoSpir constsTypes fnOps = 
+    unlines shaderPrologue ++ unlines (show <$> constsTypes) ++ 
+    unlines shaderMain ++ "\n" ++ unlines (show <$> fnOps)
 
 shaderPrologue :: [String]
 shaderPrologue = 
@@ -34,7 +24,6 @@ shaderPrologue =
     , "               OpSourceExtension \"GL_GOOGLE_cpp_style_line_directive\""
     , "               OpSourceExtension \"GL_GOOGLE_include_directive\""
     , "               OpName %main \"main\""
-    , "               OpName %prototype_f1_f1_f1_f1_ \"prototype(f1;f1;f1;f1;\""
     , "               OpName %color_x \"color_x\""
     , "               OpName %fragColor \"fragColor\""
     , "               OpName %UniformBufferObject \"UniformBufferObject\""
@@ -100,7 +89,7 @@ shaderMain =
     , "         %43 = OpAccessChain %_ptr_Uniform_float %ubo %int_0"
     , "         %44 = OpLoad %float %43"
     , "               OpStore %param_2 %44"
-    , "         %45 = OpFunctionCall %float %prototype_f1_f1_f1_f1_ %param %param_0 %param_1 %param_2"
+    , "         %45 = OpFunctionCall %float %prototype %param %param_0 %param_1 %param_2"
     , "               OpStore %color_x %45"
     , "         %49 = OpLoad %float %color_x"
     , "         %50 = OpLoad %float %color_x"

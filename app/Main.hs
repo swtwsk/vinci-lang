@@ -52,10 +52,11 @@ compilationFunction outputType = case outputType of
     Core      -> show . frontendProgramToCore
     CPS       -> \x -> unlines $ show . coreToCPS <$> (lambdaLiftProg =<< frontendProgramToCore x)
     SSA       -> \x -> unlines $ show . cpsToSSA . coreToCPS <$> (lambdaLiftProg =<< frontendProgramToCore x)
-    SPIRV     -> \x -> unlines $ unlines . fmap show . ssaToSpir . cpsToSSA . coreToCPS <$> (lambdaLiftProg =<< frontendProgramToCore x)
+    SPIRV     -> \x -> unlines . fmap show . uncurry (++) . ssaToSpir $ cpsToSSA . coreToCPS <$> (lambdaLiftProg =<< frontendProgramToCore x)
     FullSPIRV -> \x -> 
-        let spir = head $ ssaToSpir . cpsToSSA . coreToCPS <$> (lambdaLiftProg =<< frontendProgramToCore x) in
-        compileToDemoSpir spir
+        let (constsTypes, fnOps) = ssaToSpir $ cpsToSSA . coreToCPS <$> 
+                (lambdaLiftProg =<< frontendProgramToCore x) in
+        compileToDemoSpir constsTypes fnOps
 
 parseFile :: OutputType -> FileName -> IO ()
 parseFile outputType filename = do
