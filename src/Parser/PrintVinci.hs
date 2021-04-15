@@ -122,10 +122,6 @@ instance Print (Parser.AbsVinci.Program a) where
   prt i = \case
     Parser.AbsVinci.Prog _ phrases -> prPrec i 0 (concatD [prt 0 phrases])
 
-instance Print (Parser.AbsVinci.Line a) where
-  prt i = \case
-    Parser.AbsVinci.Line _ phrase -> prPrec i 0 (concatD [prt 0 phrase, doc (showString ";;")])
-
 instance Print (Parser.AbsVinci.Phrase a) where
   prt i = \case
     Parser.AbsVinci.Value _ letdef -> prPrec i 0 (concatD [prt 0 letdef])
@@ -140,14 +136,13 @@ instance Print [Parser.AbsVinci.Phrase a] where
 instance Print (Parser.AbsVinci.LetDef a) where
   prt i = \case
     Parser.AbsVinci.Let _ letbinds -> prPrec i 0 (concatD [doc (showString "let"), prt 0 letbinds])
-    Parser.AbsVinci.LetRec _ letbinds -> prPrec i 0 (concatD [doc (showString "letrec"), prt 0 letbinds])
 
 instance Print (Parser.AbsVinci.LetBind a) where
   prt i = \case
     Parser.AbsVinci.ConstBind _ letlvi expr -> prPrec i 0 (concatD [prt 0 letlvi, doc (showString "="), prt 0 expr])
     Parser.AbsVinci.ProcBind _ procname letlvis rtype expr -> prPrec i 0 (concatD [prt 0 procname, prt 0 letlvis, prt 0 rtype, doc (showString "="), prt 0 expr])
   prtList _ [x] = concatD [prt 0 x]
-  prtList _ (x:xs) = concatD [prt 0 x, doc (showString "also"), prt 0 xs]
+  prtList _ (x:xs) = concatD [prt 0 x, doc (showString "and"), prt 0 xs]
 
 instance Print (Parser.AbsVinci.LetLVI a) where
   prt i = \case
@@ -185,8 +180,8 @@ instance Print (Parser.AbsVinci.Expr a) where
     Parser.AbsVinci.EGE _ expr1 expr2 -> prPrec i 2 (concatD [prt 2 expr1, doc (showString ">="), prt 3 expr2])
     Parser.AbsVinci.EEQU _ expr1 expr2 -> prPrec i 2 (concatD [prt 2 expr1, doc (showString "=="), prt 3 expr2])
     Parser.AbsVinci.ENE _ expr1 expr2 -> prPrec i 2 (concatD [prt 2 expr1, doc (showString "!="), prt 3 expr2])
-    Parser.AbsVinci.EAnd _ expr1 expr2 -> prPrec i 1 (concatD [prt 2 expr1, doc (showString "and"), prt 1 expr2])
-    Parser.AbsVinci.EOr _ expr1 expr2 -> prPrec i 0 (concatD [prt 1 expr1, doc (showString "or"), prt 0 expr2])
+    Parser.AbsVinci.EAnd _ expr1 expr2 -> prPrec i 1 (concatD [prt 2 expr1, doc (showString "&&"), prt 1 expr2])
+    Parser.AbsVinci.EOr _ expr1 expr2 -> prPrec i 0 (concatD [prt 1 expr1, doc (showString "||"), prt 0 expr2])
     Parser.AbsVinci.ECond _ expr1 expr2 expr3 -> prPrec i 0 (concatD [doc (showString "if"), prt 0 expr1, doc (showString "then"), prt 0 expr2, doc (showString "else"), prt 0 expr3])
     Parser.AbsVinci.ELetIn _ letdef expr -> prPrec i 0 (concatD [prt 0 letdef, doc (showString "in"), prt 0 expr])
     Parser.AbsVinci.ELambda _ lambdavis expr -> prPrec i 0 (concatD [doc (showString "\\"), prt 0 lambdavis, doc (showString "->"), prt 0 expr])

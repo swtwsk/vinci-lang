@@ -4,9 +4,8 @@ token VIdent (lower (letter | digit | '_')*) ;   -- value ident
 token SIdent (upper (letter | digit | '_')*) ;   -- struct ident
 token TPolyIdent ('\'' (lower)+ ) ;              -- polymorphic type ident
 
-entrypoints Line, Program ;
+entrypoints Program ;
 Prog.       Program ::= [Phrase] ;
-Line.       Line    ::= Phrase ";;" ;
 Value.      Phrase  ::= LetDef ;                 -- value-definition
 Expression. Phrase  ::= Expr ;                   -- expression
 StructDecl. Phrase  ::= StructDef ;              -- struct declaration
@@ -14,12 +13,11 @@ StructDecl. Phrase  ::= StructDef ;              -- struct declaration
 terminator Phrase ";;" ;
 
 Let.        LetDef   ::= "let" [LetBind] ;
-LetRec.     LetDef   ::= "letrec" [LetBind] ;
 ConstBind.  LetBind  ::= LetLVI "=" Expr ;
 ProcBind.   LetBind  ::= ProcName [LetLVI] RType "=" Expr ;
 LetLVI.     LetLVI   ::= LambdaVI ;
 separator nonempty LetLVI "" ;
-separator nonempty LetBind "also" ;
+separator nonempty LetBind "and" ;
 
 -- Expressions --
 EId.        Expr8    ::= VIdent ;
@@ -47,8 +45,8 @@ EGTH.       Expr2    ::= Expr2 ">" Expr3 ;
 EGE.        Expr2    ::= Expr2 ">=" Expr3 ;
 EEQU.       Expr2    ::= Expr2 "==" Expr3 ;
 ENE.        Expr2    ::= Expr2 "!=" Expr3 ;
-EAnd.       Expr1    ::= Expr2 "and" Expr1 ;
-EOr.        Expr     ::= Expr1 "or" Expr ;
+EAnd.       Expr1    ::= Expr2 "&&" Expr1 ;
+EOr.        Expr     ::= Expr1 "||" Expr ;
 
 ECond.      Expr     ::= "if" Expr "then" Expr "else" Expr ;
 ELetIn.     Expr     ::= LetDef "in" Expr ;

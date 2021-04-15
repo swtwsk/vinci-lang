@@ -21,7 +21,7 @@ coreToCPS prog = evalVarSupply (runReaderT (coreToCPS' prog) Map.empty) supp
         supp = [("k" ++ show x, "x" ++ show x) | x <- [(0 :: Int) ..]]
 
 coreToCPS' :: Core.Prog -> TranslateM CPS.CFunDef
-coreToCPS' (Core.Prog _isRec progName args expr) = do
+coreToCPS' (Core.Prog progName args expr) = do
     (kName, _) <- nextVar
     expr' <- coreExprToCPSWithCont expr kName
     return $ CPS.CFunDef progName kName args expr'
@@ -61,16 +61,11 @@ coreExprToCPS (Core.Lit l) k = do
             Core.LFloat f -> CPS.CLitFloat f
             Core.LBool b  -> CPS.CLitBool b
     return $ CPS.CLetVal xName val kApplied
-coreExprToCPS (Core.LetFun (Core.Prog Core.NonRec f args e1) e2) k = do
+coreExprToCPS (Core.LetFun (Core.Prog f args e1) e2) k = do
     (kName, _) <- nextVar
     e1' <- coreExprToCPSWithCont e1 kName
     e2' <- coreExprToCPS e2 k
     return $ CPS.CLetFun (CPS.CFunDef f kName args e1') e2'
-coreExprToCPS (Core.LetFun (Core.Prog Core.Rec f args e1) e2) k = do
-    (kName, _) <- nextVar
-    e1' <- coreExprToCPSWithCont e1 kName
-    e2' <- coreExprToCPS e2 k
-    return $ CPS.CLetFix f kName args e1' e2'
 coreExprToCPS (Core.UnOp op expr) k = do
     (_, resName) <- nextVar
     kApplied <- k resName
@@ -112,16 +107,11 @@ coreExprToCPSWithCont (Core.Lit l) k = do
             Core.LFloat f -> CPS.CLitFloat f
             Core.LBool b -> CPS.CLitBool b
     return $ CPS.CLetVal xName val (CPS.CAppCont k xName)
-coreExprToCPSWithCont (Core.LetFun (Core.Prog Core.NonRec f args e1) e2) k = do
+coreExprToCPSWithCont (Core.LetFun (Core.Prog f args e1) e2) k = do
     (jName, _) <- nextVar
     e1' <- coreExprToCPSWithCont e1 jName
     e2' <- coreExprToCPSWithCont e2 k
     return $ CPS.CLetFun (CPS.CFunDef f jName args e1') e2'
-coreExprToCPSWithCont (Core.LetFun (Core.Prog Core.Rec f args e1) e2) k = do
-    (jName, _) <- nextVar
-    e1' <- coreExprToCPSWithCont e1 jName
-    e2' <- coreExprToCPSWithCont e2 k
-    return $ CPS.CLetFix f jName args e1' e2'
 coreExprToCPSWithCont (Core.UnOp op expr) k = do
     (_, resName) <- nextVar
     let kprim x = return $ 

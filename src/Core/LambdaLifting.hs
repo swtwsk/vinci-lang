@@ -25,9 +25,9 @@ parameterLiftProg :: Prog -> Prog
 parameterLiftProg p = runReader (parameterLiftDef p) Map.empty
 
 parameterLiftDef :: Prog -> LiftM Prog
-parameterLiftDef (Prog t fName args e) = do
+parameterLiftDef (Prog fName args e) = do
     e' <- parameterLiftExpr e
-    applySolutionToDef (Prog t fName args e')
+    applySolutionToDef (Prog fName args e')
 
 parameterLiftExpr :: Expr -> LiftM Expr
 parameterLiftExpr v@(Var _) = applySolutionToExpr v
@@ -48,10 +48,9 @@ parameterLiftExpr (Let n e1 e2) = do
     e1' <- parameterLiftExpr e1
     e2' <- parameterLiftExpr e2
     return $ Let n e1' e2'
-parameterLiftExpr (LetFun p@(Prog progType n args e1) e2) = do
+parameterLiftExpr (LetFun p@(Prog n args e1) e2) = do
     lifts <- ask
-    let args' = case progType of { NonRec -> args ; Rec -> n:args }
-        fv  = runReader (freeVariables e1) (Set.fromList args')
+    let fv  = runReader (freeVariables e1) (Set.fromList (n:args))
         fv' = Set.toList fv
         mergeFun acc g gVars = if Set.member g fv then acc ++ gVars else acc
         fv''   = Map.foldlWithKey mergeFun fv' lifts
@@ -66,8 +65,8 @@ parameterLiftExpr (BinOp op e1 e2) = do
 parameterLiftExpr (UnOp op e) = UnOp op <$> parameterLiftExpr e
 
 applySolutionToDef :: Prog -> LiftM Prog
-applySolutionToDef p@(Prog t f args e) = ask <&> \m -> case Map.lookup f m of
-    Just varList -> Prog t f (varList ++ args) e
+applySolutionToDef p@(Prog f args e) = ask <&> \m -> case Map.lookup f m of
+    Just varList -> Prog f (varList ++ args) e
     Nothing -> p
 
 applySolutionToExpr :: Expr -> LiftM Expr
@@ -78,7 +77,7 @@ applySolutionToExpr e = return e
 
 -- block floating
 blockFloatDef :: Prog -> Set.Set Prog
-blockFloatDef (Prog t fName args e) = Set.insert (Prog t fName args e') fs
+blockFloatDef (Prog fName args e) = Set.insert (Prog fName args e') fs
     where (fs, e') = blockFloatExpr e
 
 blockFloatExpr :: Expr -> (Set.Set Prog, Expr)
@@ -140,11 +139,7 @@ freeVariables (Let n e1 e2) = do
     fv1 <- freeVariables e1
     fv2 <- local (Set.insert n) (freeVariables e2)
     return $ fv1 `Set.union` fv2
-freeVariables (LetFun (Prog NonRec f args e1) e2) = do
-    fv1 <- local (Set.union (Set.fromList args)) (freeVariables e1)
-    fv2 <- local (Set.insert f) (freeVariables e2)
-    return $ fv1 `Set.union` fv2
-freeVariables (LetFun (Prog Rec f args e1) e2) = do
+freeVariables (LetFun (Prog f args e1) e2) = do
     fv1 <- local (Set.union (Set.fromList args) . Set.insert f) (freeVariables e1)
     fv2 <- local (Set.insert f) (freeVariables e2)
     return $ fv1 `Set.union` fv2

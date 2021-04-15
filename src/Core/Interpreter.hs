@@ -21,7 +21,7 @@ data Value = VFloat Double
 -- TODO: FIX INTERPRETER
 
 eval :: Prog -> Either Err Value
-eval (Prog _ fn args e) = pure $ VClosure fn args e Map.empty
+eval (Prog fn args e) = pure $ VClosure fn args e Map.empty
 
 evalExpr :: Expr -> Either Err Value
 evalExpr = evalExprEnv Map.empty
@@ -53,7 +53,7 @@ eval' (If cond e1 e2) = do
 eval' (Let n e1 e2) = do
     e1' <- eval' e1
     local (Map.insert n e1') (eval' e2)
-eval' (LetFun (Prog _ f args e1) e2) = do
+eval' (LetFun (Prog f args e1) e2) = do
     f' <- asks (VClosure f args e1)
     local (Map.insert f f') (eval' e2)
 eval' (BinOp op e1 e2) = do

@@ -21,9 +21,7 @@ frontendProgramToCore (F.Prog phrases) =
 
 -- it shouldn't be Prog
 phraseToCore :: F.Phrase -> SuppM [Prog]
-phraseToCore (F.Value letdef) = case letdef of
-    F.Let binds -> mapM bindToProg binds
-    F.LetRec _binds -> undefined
+phraseToCore (F.Value (F.Let binds)) = mapM bindToProg binds
     where
         bindToProg :: F.LetBind -> SuppM Prog
         bindToProg (F.ProcBind name vis _resType e) = do
@@ -31,7 +29,7 @@ phraseToCore (F.Value letdef) = case letdef of
             vis' <- mapM extractName vis
             e'' <- exprToCore e'
             (args, e''') <- extractProgArgs (vis' ++ vis'') e''
-            return $ Prog NonRec name args e'''
+            return $ Prog name args e'''
         bindToProg F.ConstBind {} = undefined
 phraseToCore _ = undefined
 
@@ -61,9 +59,8 @@ exprToCore (F.EAnd e1 e2) = binOpToCore OpAnd e1 e2
 exprToCore (F.EOr e1 e2) = binOpToCore OpOr e1 e2
 exprToCore (F.ECond cond e1 e2) = 
     If <$> exprToCore cond <*> exprToCore e1 <*> exprToCore e2
-exprToCore (F.ELetIn letdef e) = exprToCore e >>= \te -> case letdef of
-    F.Let binds -> foldrM letBindToCore te binds
-    F.LetRec binds -> foldrM letRecBindToCore te binds
+exprToCore (F.ELetIn (F.Let binds) e) = 
+    exprToCore e >>= \te -> foldrM letBindToCore te binds
 exprToCore (F.ELambda _lambdas _e) = undefined
 exprToCore (F.ETuple exprs) = do
     (funs, tuple) <- foldrM foldFn ([], []) exprs
@@ -75,7 +72,7 @@ exprToCore (F.ETuple exprs) = do
             e'' <- exprToCore e'
             tmp <- nextVar
             (args'', e''') <- extractProgArgs args' e''
-            return (Prog NonRec tmp args'' e''':fns, Var tmp:exs)
+            return (Prog tmp args'' e''':fns, Var tmp:exs)
         foldFn e (fns, exs) = exprToCore e <&> \x -> (fns, x:exs)
 exprToCore (F.EInt _i) = undefined
 exprToCore (F.EFieldGet _expr _field) = undefined
@@ -91,7 +88,7 @@ letBindToCore (F.ConstBind (F.LambdaVId n) e1) e2 = do
         then return $ Let n e1'' e2 
         else do 
             (args', e1''') <- extractProgArgs args e1''
-            return $ LetFun (Prog NonRec n args' e1''') e2
+            return $ LetFun (Prog n args' e1''') e2
 letBindToCore (F.ConstBind (F.TypedVId _lvi _t) _e1) _e2 = undefined
 letBindToCore (F.ConstBind F.WildVId _) e2 = return e2
 letBindToCore (F.ConstBind (F.TupleVId lambdas) e1) e2 = do
@@ -113,17 +110,7 @@ letBindToCore (F.ProcBind pName lambdas _type e1) e2 = do
     let args' = lambdas' ++ args
     e1'' <- exprToCore e1'
     (args'', e1''') <- extractProgArgs args' e1''
-    return $ LetFun (Prog NonRec pName args'' e1''') e2
-
-letRecBindToCore :: F.LetBind -> Expr -> SuppM Expr
-letRecBindToCore (F.ProcBind pName lambdas _type e1) e2 = do
-    (args, e1') <- extractLam e1
-    lambdas' <- mapM extractName lambdas
-    let args' = lambdas' ++ args
-    e1'' <- exprToCore e1'
-    (args'', e1''') <- extractProgArgs args' e1''
-    return $ LetFun (Prog Rec pName args'' e1''') e2
-letRecBindToCore F.ConstBind {} _ = undefined
+    return $ LetFun (Prog pName args'' e1''') e2
 
 extractProgArgs :: [ProgArg] -> Expr -> SuppM ([Name], Expr)
 extractProgArgs (ProgVar n:t) e = do

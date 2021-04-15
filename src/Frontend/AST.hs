@@ -7,16 +7,13 @@ import Data.List (intercalate)
 
 newtype Program = Prog [Phrase] deriving (Eq, Ord, Read)
 
-newtype Line = Line Phrase deriving (Eq, Ord, Read)
-
 data Phrase = Value LetDef
             | Expression Expr
             | StructDecl StructDef
             deriving (Eq, Ord, Read)
 
-data LetDef = Let [LetBind] 
-            | LetRec [LetBind]
-            deriving (Eq, Ord, Read)
+newtype LetDef = Let [LetBind] 
+               deriving (Eq, Ord, Read)
 
 data LetBind = ConstBind LambdaVI Expr
              | ProcBind String [LambdaVI] (Maybe Type) Expr
@@ -80,9 +77,6 @@ data Type = TInt
 instance Show Program where
     show (Prog phrases) = unlines $ show <$> phrases
 
-instance Show Line where
-    show (Line phrase) = show phrase
-
 instance Show Phrase where
     show (Value letdef) = show letdef
     show (Expression expr) = show expr
@@ -90,7 +84,6 @@ instance Show Phrase where
 
 instance Show LetDef where
     show (Let letbinds) = "let " ++ intercalate " also " (show <$> letbinds)
-    show (LetRec letbinds) = "letrec " ++ intercalate " also " (show <$> letbinds)
 
 instance Show LetBind where
     show (ConstBind lambdavi expr) = show lambdavi ++ " = " ++ show expr

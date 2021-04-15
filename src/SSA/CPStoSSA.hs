@@ -105,13 +105,6 @@ cExprToSSA CPS.CLetPrim {} = undefined
 cExprToSSA (CPS.CIf x k1 k2) = output $ 
     SIf (SVar x) (SLabel k1) (SLabel k2)
 cExprToSSA (CPS.CLetFun _fdef _cexpr) = undefined
-cExprToSSA (CPS.CLetFix _f _k _args _c1 _c2) = undefined
--- cExprToSSA (CPS.CLetFix f k args c1 c2) = do
---     jumps <- gets _untranspiledJumps
---     closure <- ask
---     let jumps' = (f, RecCont k args c1, closure):jumps
---     modify (\ts -> ts { _untranspiledJumps = jumps' })
---     cExprToSSA c2
 
 evalJumpsToSSA :: StateEnv -> (StateEnv, [SLabelledBlock])
 evalJumpsToSSA ts = case _untranspiledJumps ts of

@@ -13,9 +13,6 @@ class Transpilable a b where
 instance Transpilable (Abs.Program a) Program where
     transpile (Abs.Prog _ phrase) = Prog (transpile <$> phrase)
 
-instance Transpilable (Abs.Line a) Line where
-    transpile (Abs.Line _ phrase) = Line (transpile phrase)
-
 instance Transpilable (Abs.Phrase a) Phrase where
     transpile (Abs.Value _ letdef) = Value (transpile letdef)
     transpile (Abs.Expression _ expr) = Expression (transpile expr)
@@ -23,7 +20,6 @@ instance Transpilable (Abs.Phrase a) Phrase where
 
 instance Transpilable (Abs.LetDef a) LetDef where
     transpile (Abs.Let _ letbind) = Let (transpile <$> letbind)
-    transpile (Abs.LetRec _ letbind) = LetRec (transpile <$> letbind)
 
 instance Transpilable (Abs.LetBind a) LetBind where
     transpile letbind = case letbind of

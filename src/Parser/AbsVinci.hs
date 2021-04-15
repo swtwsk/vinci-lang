@@ -16,16 +16,13 @@ import qualified Data.String
 data Program a = Prog a [Phrase a]
     deriving (Ord, Show, Read, Functor, Foldable, Traversable)
 
-data Line a = Line a (Phrase a)
-    deriving (Ord, Show, Read, Functor, Foldable, Traversable)
-
 data Phrase a
     = Value a (LetDef a)
     | Expression a (Expr a)
     | StructDecl a (StructDef a)
     deriving (Ord, Show, Read, Functor, Foldable, Traversable)
 
-data LetDef a = Let a [LetBind a] | LetRec a [LetBind a]
+data LetDef a = Let a [LetBind a]
     deriving (Ord, Show, Read, Functor, Foldable, Traversable)
 
 data LetBind a
@@ -122,9 +119,6 @@ pattern BNFC'Position line col = Just (line, col)
 instance Eq (Program a) where
     (Prog _ pl) == (Prog _ pr) = pl == pr
 
-instance Eq (Line a) where
-    (Line _ pl) == (Line _ pr) = pl == pr
-
 instance Eq (Phrase a) where
     (Value _ ll) == (Value _ lr) = ll == lr
     (Expression _ el) == (Expression _ er) = el == er
@@ -133,8 +127,6 @@ instance Eq (Phrase a) where
 
 instance Eq (LetDef a) where
     (Let _ ll) == (Let _ lr) = ll == lr
-    (LetRec _ ll) == (LetRec _ lr) = ll == lr
-    _ == _ = False
 
 instance Eq (LetBind a) where
     (ConstBind _ ll el) == (ConstBind _ lr er) = ll == lr && el == er
@@ -220,10 +212,6 @@ instance HasPosition (Program BNFC'Position) where
     hasPosition = \case
         Prog p _ -> p
 
-instance HasPosition (Line BNFC'Position) where
-    hasPosition = \case
-        Line p _ -> p
-
 instance HasPosition (Phrase BNFC'Position) where
     hasPosition = \case
         Value p _ -> p
@@ -233,7 +221,6 @@ instance HasPosition (Phrase BNFC'Position) where
 instance HasPosition (LetDef BNFC'Position) where
     hasPosition = \case
         Let p _ -> p
-        LetRec p _ -> p
 
 instance HasPosition (LetBind BNFC'Position) where
     hasPosition = \case

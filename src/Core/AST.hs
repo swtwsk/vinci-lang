@@ -6,9 +6,7 @@ import Core.Ops (BinOp(..), UnOp(..))
 
 type Name = String
 
-data ProgType = NonRec | Rec deriving (Eq, Ord)
-
-data Prog = Prog ProgType Name [Name] Expr
+data Prog = Prog Name [Name] Expr
           deriving (Eq, Ord)
 
 data Expr = Var Name
@@ -29,7 +27,7 @@ data Lit = LFloat Double
 
 -- SHOWS
 instance Show Prog where
-    show (Prog _progType progName args expr) = 
+    show (Prog progName args expr) = 
         "fn " ++ progName ++ " " ++ unwords args ++ " = " ++ show expr
 
 instance Show Expr where
@@ -41,8 +39,8 @@ instance Show Expr where
     show (TupleCons exprs) = "(" ++ intercalate "," (show <$> exprs) ++ ")"
     show (TupleProj i e) = "π" ++ show i ++ " " ++ show e
     show (Let n e1 e2) = "let " ++ n ++ " = " ++ show e1 ++ " in " ++ show e2
-    show (LetFun prog@(Prog progType _ _ _) e2) = slet ++ show prog ++ " in " ++ show e2
-        where slet = case progType of { NonRec -> "let" ; Rec -> "letrec" } ++ " "
+    show (LetFun prog e2) = 
+        "let " ++ show prog ++ " in " ++ show e2
     show (BinOp op e1 e2) = show e1 ++ " " ++ show op ++ " " ++ show e2
     show (UnOp op e) = show op ++ " " ++ show e
 

@@ -40,17 +40,18 @@ The set of reserved words is the set of terminals appearing in the grammar. Thos
 
 The reserved words used in Vinci are the following:
   | ``Bool`` | ``False`` | ``Float`` | ``Int``
-  | ``True`` | ``also`` | ``and`` | ``else``
-  | ``if`` | ``in`` | ``let`` | ``letrec``
-  | ``not`` | ``or`` | ``struct`` | ``then``
+  | ``True`` | ``and`` | ``else`` | ``if``
+  | ``in`` | ``let`` | ``not`` | ``struct``
+  | ``then`` |  |  |
 
 The symbols used in Vinci are the following:
   | ;; | = | . | (
   | , | ) | : | -
   | * | / | % | +
   | < | <= | > | >=
-  | == | != | \ | ->
-  | { | } | _ |
+  | == | != | && | ||
+  | \ | -> | { | }
+  | _ |  |  |
 
 ===Comments===
 Single-line comments begin with #.There are no multiple-line comments in the grammar.
@@ -62,21 +63,19 @@ and **eps** (empty rule) belong to the BNF notation.
 All other symbols are terminals.
 
   | //Program// | -> | //[Phrase]//
-  | //Line// | -> | //Phrase// ``;;``
   | //Phrase// | -> | //LetDef//
   |  |  **|**  | //Expr//
   |  |  **|**  | //StructDef//
   | //[Phrase]// | -> | **eps**
   |  |  **|**  | //Phrase// ``;;`` //[Phrase]//
   | //LetDef// | -> | ``let`` //[LetBind]//
-  |  |  **|**  | ``letrec`` //[LetBind]//
   | //LetBind// | -> | //LetLVI// ``=`` //Expr//
   |  |  **|**  | //ProcName// //[LetLVI]// //RType// ``=`` //Expr//
   | //LetLVI// | -> | //LambdaVI//
   | //[LetLVI]// | -> | //LetLVI//
   |  |  **|**  | //LetLVI// //[LetLVI]//
   | //[LetBind]// | -> | //LetBind//
-  |  |  **|**  | //LetBind// ``also`` //[LetBind]//
+  |  |  **|**  | //LetBind// ``and`` //[LetBind]//
   | //Expr8// | -> | //VIdent//
   |  |  **|**  | //Integer//
   |  |  **|**  | //Double//
@@ -106,9 +105,9 @@ All other symbols are terminals.
   |  |  **|**  | //Expr2// ``==`` //Expr3//
   |  |  **|**  | //Expr2// ``!=`` //Expr3//
   |  |  **|**  | //Expr3//
-  | //Expr1// | -> | //Expr2// ``and`` //Expr1//
+  | //Expr1// | -> | //Expr2// ``&&`` //Expr1//
   |  |  **|**  | //Expr2//
-  | //Expr// | -> | //Expr1// ``or`` //Expr//
+  | //Expr// | -> | //Expr1// ``||`` //Expr//
   |  |  **|**  | ``if`` //Expr// ``then`` //Expr// ``else`` //Expr//
   |  |  **|**  | //LetDef// ``in`` //Expr//
   |  |  **|**  | ``\`` //[LambdaVI]// ``->`` //Expr//

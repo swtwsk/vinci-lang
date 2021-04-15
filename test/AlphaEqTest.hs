@@ -23,10 +23,10 @@ tests = testGroup "Alpha Equivalence"
         nestedAllYCombinator = CFunDef "proc2" "k2" [] $ CLetVal "f" (CLamCont "k" "y" $ CLetVal "g" (CLamCont "k" "y" (CAppCont "k" "y")) (CAppCont "k" "g")) (CAppCont "k2" "f")
         succX = CFunDef "procx" "kx" [] $ CLetVal "f" (CLamCont "k" "x" (CLetVal "x1" (CLitFloat 1.0) (CLetPrim "r1" (CBinOp OpAdd) ["x", "x1"] (CAppCont "k" "r1")))) (CAppCont "kx" "f")
         succY = CFunDef "procy" "ky" [] $ CLetVal "f" (CLamCont "k" "y" (CLetVal "x1" (CLitFloat 1.0) (CLetPrim "r1" (CBinOp OpAdd) ["y", "x1"] (CAppCont "k" "r1")))) (CAppCont "ky" "f")
-        recWithoutCallX = CFunDef "procrx" "krx" [] $ CLetFix "f" "k" ["x"] (CLetVal "x1" (CLitFloat 1.0) (CLetPrim "r1" (CBinOp OpAdd) ["x", "x1"] (CAppCont "k" "r1"))) (CLetVal "x0" (CLitFloat 0.0) (CLetCont "k" "x" (CAppCont "krx" "x") (CAppFun "f" "k" ["x0"])))
-        recWithoutCallY = CFunDef "procry" "kry" [] $ CLetFix "g" "h" ["y"] (CLetVal "x1" (CLitFloat 1.0) (CLetPrim "r1" (CBinOp OpAdd) ["y", "x1"] (CAppCont "h" "r1"))) (CLetVal "x0" (CLitFloat 0.0) (CLetCont "k" "x" (CAppCont "kry" "x") (CAppFun "g" "k" ["x0"])))
-        recWithCallX = CFunDef "procx" "kx" [] $ CLetFix "f" "k" ["x"] (CLetCont "k2" "x" (CAppCont "k" "x") (CAppFun "f" "k2" ["x"])) (CLetVal "x0" (CLitFloat 0.0) (CLetCont "k" "x" (CAppCont "kx" "x") (CAppFun "f" "k" ["x0"])))
-        recWithCallY = CFunDef "procy" "ky" [] $ CLetFix "g" "h" ["y"] (CLetCont "k2" "x" (CAppCont "h" "x") (CAppFun "g" "k2" ["y"])) (CLetVal "x0" (CLitFloat 0.0) (CLetCont "k" "x" (CAppCont "ky" "x") (CAppFun "g" "k" ["x0"])))
+        recWithoutCallX = CFunDef "procrx" "krx" [] $ CLetFun (CFunDef "f" "k" ["x"] (CLetVal "x1" (CLitFloat 1.0) (CLetPrim "r1" (CBinOp OpAdd) ["x", "x1"] (CAppCont "k" "r1")))) (CLetVal "x0" (CLitFloat 0.0) (CLetCont "k" "x" (CAppCont "krx" "x") (CAppFun "f" "k" ["x0"])))
+        recWithoutCallY = CFunDef "procry" "kry" [] $ CLetFun (CFunDef "g" "h" ["y"] (CLetVal "x1" (CLitFloat 1.0) (CLetPrim "r1" (CBinOp OpAdd) ["y", "x1"] (CAppCont "h" "r1")))) (CLetVal "x0" (CLitFloat 0.0) (CLetCont "k" "x" (CAppCont "kry" "x") (CAppFun "g" "k" ["x0"])))
+        recWithCallX = CFunDef "procx" "kx" [] $ CLetFun (CFunDef "f" "k" ["x"] (CLetCont "k2" "x" (CAppCont "k" "x") (CAppFun "f" "k2" ["x"]))) (CLetVal "x0" (CLitFloat 0.0) (CLetCont "k" "x" (CAppCont "kx" "x") (CAppFun "f" "k" ["x0"])))
+        recWithCallY = CFunDef "procy" "ky" [] $ CLetFun (CFunDef "g" "h" ["y"] (CLetCont "k2" "x" (CAppCont "h" "x") (CAppFun "g" "k2" ["y"]))) (CLetVal "x0" (CLitFloat 0.0) (CLetCont "k" "x" (CAppCont "ky" "x") (CAppFun "g" "k" ["x0"])))
         iCombinator = CFunDef "proci" "ki" [] $ CLetVal "f" (CLamCont "k" "x" $ CAppCont "k" "x") (CAppCont "ki" "f")
 
 assertAlphaEq :: (AlphaEq a, Show a) => a -> a -> Assertion
