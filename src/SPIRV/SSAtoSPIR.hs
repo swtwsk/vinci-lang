@@ -41,19 +41,17 @@ ssaToSpir fnDefs = (typeIds ++ consts, fnOps')
 ssaToSpir' :: [SFnDef] -> ([SpirOp], [SpirOp])
 ssaToSpir' fnDefs = (typesToOps $ _typeIds finalSt, toList ops)
     where
-        (finalSt, ops) = execRWS (mapM_ fnDefToSpir fnDefs) readerEnv stWithTypes
+        (finalSt, ops) = swap1_3 execRWS readerEnv initialStateEnv $
+            mapM_ getTypeId (snd <$> funs) >> mapM_ fnDefToSpir fnDefs
 
         readerEnv = ReaderEnv { _funs = libraryList `Map.union` Map.fromList funs }
-        (stWithTypes, _) = swap1_3 execRWS readerEnv initialStateEnv $
-            mapM_ getTypeId (snd <$> funs)
-        
         initialStateEnv = StateEnv 
             { _typeIds = Map.empty
             , _renames = Map.empty
             , _argTypes = Map.empty
             , _varSupply = [show i | i <- [(61 :: Int)..]] }
         funs = flip fmap fnDefs $ \(SFnDef fName args _ _) -> 
-                (fName, TFun TFloat (TPointer StorFunction TFloat <$ args))
+                (fName, TFun (TVector TFloat 3) (TPointer StorFunction TFloat <$ args))
 
 fnDefToSpir :: SFnDef -> SpirM ()
 fnDefToSpir (SFnDef fName fArgs block labelled) = do
@@ -228,8 +226,22 @@ getVarTypeIdWithType var t = do
     getTypeId $ 
         fromMaybe (TPointer StorFunction t) (Map.lookup var argTypes)
 
+-- WALKAROUND: Apparently State, Writer and Data.Map get confused when it comes
+-- to sequencing operations.
+-- In the State map there was `TVector TFloat _` key but no `TFloat` (yet)
+-- and `Map.!` was throwing exceptions inside `typesToOps` function
+-- (apparently it started processing (TVector TFloat _) before the end of
+-- the State pass). Now "new" getTypeId puts types into the typeMap recursively
+-- to ensure that all "composite" types are already in the map
 getTypeId :: SpirType -> SpirM SpirId
-getTypeId t = do
+getTypeId t@(TVector inner _) = getTypeId' inner >> getTypeId' t
+getTypeId t@(TPointer _ inner) = getTypeId' inner >> getTypeId' t
+getTypeId t@(TFun ret args) = 
+    getTypeId' ret >> mapM_ getTypeId' args >> getTypeId' t
+getTypeId t = getTypeId' t
+
+getTypeId' :: SpirType -> SpirM SpirId
+getTypeId' t = do
     typeIds <- gets _typeIds
     swap1_3 maybe return (Map.lookup t typeIds) $ do
         tVar <- SpirId <$> nextVar

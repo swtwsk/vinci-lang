@@ -20,6 +20,6 @@ instance Show SpirType where
     show TFloat = "float"
     show (TVector t size) = "v" ++ show size ++ show t
     show TVoid = "void"
-    show (TPointer _ t) = show t
+    show (TPointer _ t) = "*" ++ show t
     show (TFun ret args) = 
         intercalate " -> " (show <$> args) ++ " -> " ++ show ret
