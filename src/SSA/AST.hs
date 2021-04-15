@@ -22,9 +22,12 @@ data SStmt = SAssign VarName SExpr
 
 data SExpr = SVar VarName
            | SApp VarName [VarName]
+           | STupleCtr [VarName]
+           | STupleProj Int VarName
            | SBinOp BinOp SExpr SExpr
            | SUnOp UnOp SExpr
            | SLitFloat Double
+           | SLitBool Bool
            deriving Eq
 
 newtype SArg = SArg VarName deriving Eq
@@ -70,6 +73,9 @@ instance Show SArg where
 instance Show SExpr where
     show (SVar v) = v
     show (SApp f args) = f ++ "(" ++ intercalate "," args ++ ")"
+    show (STupleCtr vars) = "(" ++ intercalate ", " vars ++ ")"
+    show (STupleProj i v) = "π" ++ show i ++ "(" ++ v ++ ")"
     show (SBinOp op e1 e2) = show e1 ++ " " ++ show op ++ " " ++ show e2
     show (SUnOp op e) = show op ++ " " ++ show e
     show (SLitFloat f) = show f
+    show (SLitBool b) = show b

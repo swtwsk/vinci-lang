@@ -8,8 +8,10 @@ data SpirOp = OpFunction SpirId SpirId SpirFunctionControl SpirId
             | OpLabel SpirId
             | OpBranch SpirId
             | OpBranchConditional SpirId SpirId SpirId
+            | OpCompositeConstruct SpirId SpirId [SpirId]
             | OpLoad SpirId SpirId SpirId
             | OpStore SpirId SpirId
+            | OpAccessChain SpirId SpirId SpirId SpirId
             | OpVariable SpirId SpirId SpirStorageClass
             | OpPhi SpirId SpirId [(SpirId, SpirId)]
             | OpReturn
@@ -38,7 +40,10 @@ data SpirOp = OpFunction SpirId SpirId SpirFunctionControl SpirId
             | OpTypeFunction SpirId SpirId [SpirId]
             deriving Eq
 
-data SpirConst = SCFloat Double | SCBool Bool deriving Eq
+data SpirConst = SCFloat Double
+               | SCBool Bool
+               | SCUnsigned Int
+               deriving Eq
 
 data SpirFunctionControl = FCNone | FCInline | FCDontInline | FCPure | FCConst
                          deriving Eq
@@ -59,9 +64,13 @@ instance Show SpirOp where
     show (OpBranch b) = "OpBranch " ++ show b
     show (OpBranchConditional cond b1 b2) = 
         "OpBranchConditional " ++ show cond ++ " " ++ show b1 ++ " " ++ show b2
+    show (OpCompositeConstruct res resT args) =
+        showOpWithResult res "OpCompositeConstruct" (resT:args)
     show (OpLoad res resultType arg) = 
         showOpWithResult res "OpLoad" [resultType, arg]
     show (OpStore res toStore) = "OpStore " ++ show res ++ " " ++ show toStore
+    show (OpAccessChain res resT pointer i) =
+        showOpWithResult res "OpAccessChain" [resT, pointer, i]
     show (OpVariable var varType storage) = 
         show var ++ " = OpVariable " ++ show varType ++ " " ++ show storage
     show (OpPhi res resultType varLabels) =
@@ -119,6 +128,7 @@ instance Show SpirFunctionControl where
 instance Show SpirConst where
     show (SCFloat f) = show f
     show (SCBool b)  = show b
+    show (SCUnsigned ui) = show ui
 
 instance Show SpirStorageClass where
     show StorFunction = "Function"

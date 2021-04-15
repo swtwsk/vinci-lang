@@ -2,6 +2,7 @@ module Core.Interpreter (eval, evalExpr, evalExprEnv, Value(..)) where
 
 import Control.Monad.Reader
 import Control.Monad.Except
+import Data.List (intercalate)
 import qualified Data.Map as Map
 
 import Core.AST
@@ -13,14 +14,14 @@ type EvalM = ReaderT Env (Except Err)
 
 data Value = VFloat Double
            | VBool Bool
-           | VClosure String Expr Env
-           | VFixed String Expr Env
+           | VTuple [Value]
+           | VClosure String [String] Expr Env
            deriving (Eq)
 
+-- TODO: FIX INTERPRETER
+
 eval :: Prog -> Either Err Value
-eval (Prog _ _ args e) = runExcept $ runReaderT (eval' e') Map.empty
-    where
-        e' = foldr Lam e args
+eval (Prog _ fn args e) = pure $ VClosure fn args e Map.empty
 
 evalExpr :: Expr -> Either Err Value
 evalExpr = evalExprEnv Map.empty
@@ -32,7 +33,6 @@ eval' :: Expr -> EvalM Value
 eval' (Var var) = do
     env <- ask
     maybe (throwError $ "Unbound variable " ++ var) return $ Map.lookup var env
-eval' (Lam n e) = asks (VClosure n e)
 eval' (Lit l) = case l of
     LFloat f -> return $ VFloat f
     LBool b -> return $ VBool b
@@ -40,6 +40,11 @@ eval' (App e1 e2) = do
     e1' <- eval' e1
     e2' <- eval' e2
     apply e1' e2'
+eval' (TupleCons exprs) = VTuple <$> mapM eval' exprs
+eval' (TupleProj i e) = do
+    e' <- eval' e
+    let (VTuple vals) = e'
+    return $ vals !! i
 eval' (If cond e1 e2) = do
     c <- eval' cond
     case c of
@@ -48,15 +53,9 @@ eval' (If cond e1 e2) = do
 eval' (Let n e1 e2) = do
     e1' <- eval' e1
     local (Map.insert n e1') (eval' e2)
-eval' (LetFun (Prog NonRec f args e1) e2) = do
-    let e1' = foldr Lam e1 args
-    e1'' <- eval' e1'
-    local (Map.insert f e1'') (eval' e2)
-eval' (LetFun (Prog Rec f args e1) e2) = do
-    env <- ask
-    let e1' = foldr Lam e1 args
-    e1'' <- local (Map.insert f (VFixed f e1' env)) (eval' e1')
-    local (Map.insert f e1'') (eval' e2)
+eval' (LetFun (Prog _ f args e1) e2) = do
+    f' <- asks (VClosure f args e1)
+    local (Map.insert f f') (eval' e2)
 eval' (BinOp op e1 e2) = do
     e1' <- eval' e1
     e2' <- eval' e2
@@ -84,14 +83,18 @@ eval' (UnOp op e) = do
         unOp _ _ = throwError "Unexpected error"
 
 apply :: Value -> Value -> EvalM Value
-apply (VClosure x e1 cenv) e2 = local (Map.insert x e2 . Map.union cenv) (eval' e1)
-apply f@(VFixed fn (Lam x e1) cenv) e2 = flip local (eval' e1) $
-    Map.insert fn f . Map.insert x e2 . Map.union cenv
+apply f@(VClosure fn [h] e1 cenv) e2 = 
+    local (Map.insert fn f . Map.insert h e2 . Map.union cenv) (eval' e1)
+apply f@(VClosure fn (h:t) e1 cenv) e2 = do
+    newEnv <- asks (Map.insert fn f . Map.insert h e2 . Map.union cenv)
+    return $ VClosure "_" t e1 newEnv
+-- apply f@(VFixed fn (Lam x e1) cenv) e2 = flip local (eval' e1) $
+--     Map.insert fn f . Map.insert x e2 . Map.union cenv
 apply e1 e2 = throwError $ "Cannot apply " ++ show e1 ++ " to " ++ show e2
 
 -- SHOW
 instance Show Value where
     show (VFloat f)  = show f
     show (VBool b)   = show b
+    show (VTuple vs) = "(" ++ intercalate "," (show <$> vs) ++ ")"
     show VClosure {} = "<fun>"
-    show VFixed {}   = "<fun>"

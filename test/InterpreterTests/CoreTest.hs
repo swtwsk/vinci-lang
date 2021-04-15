@@ -12,12 +12,12 @@ import Core.Ops
 tests :: TestTree
 tests = testGroup "Core tests"
     [ testCase "(λx. 1) 2" $ evalExpr constLambda @?= Right (VFloat 1.0)
-    , testCase "fib 7" $ assertRunProc fibProg (App (Var "fib") (Lit $ LFloat 7.0)) (VFloat 13.0)
-    , testCase "fib' 7" $ assertRunProc fibProg' (App (Var "fib") (Lit $ LFloat 7.0)) (VFloat 13.0) ]
+    , testCase "let x = (1.0, 2.0) in #0 x" $ evalExpr tuple @?= Right (VFloat 1.0)
+    , testCase "fib 7" $ assertRunProc fibProg (App (Var "fib") (Lit $ LFloat 7.0)) (VFloat 13.0) ]
     where
-        constLambda = App (Lam "x" (Lit $ LFloat 1.0)) (Lit $ LFloat 2.0)
-        fibProg = Prog NonRec "fib"  ["n"] (LetFun (Prog Rec "help" ["a"] (Lam "b" (Lam "n" (If (BinOp OpLT (Lit $ LFloat 0.0) (Var "n")) (App (App (App (Var "help") (Var "b")) (BinOp OpAdd (Var "a") (Var "b"))) (BinOp OpSub (Var "n") (Lit $ LFloat 1.0))) (Var "a"))))) (App (App (App (Var "help") (Lit $ LFloat 0.0)) (Lit $ LFloat 1.0)) (Var "n")))
-        fibProg' = Prog NonRec "fib" ["n"] (LetFun (Prog Rec "help" ["a", "b", "n"] (If (BinOp OpLT (Lit $ LFloat 0.0) (Var "n")) (App (App (App (Var "help") (Var "b")) (BinOp OpAdd (Var "a") (Var "b"))) (BinOp OpSub (Var "n") (Lit $ LFloat 1.0))) (Var "a"))) (App (App (App (Var "help") (Lit $ LFloat 0.0)) (Lit $ LFloat 1.0)) (Var "n")))
+        constLambda = LetFun (Prog NonRec "f" ["x"] (Lit $ LFloat 1.0)) (App (Var "f") (Lit $ LFloat 2.0))
+        tuple = Let "x" (TupleCons [Lit $ LFloat 1.0, Lit $ LFloat 2.0]) (TupleProj 0 (Var "x"))
+        fibProg = Prog NonRec "fib" ["n"] (LetFun (Prog Rec "help" ["a", "b", "n"] (If (BinOp OpLT (Lit $ LFloat 0.0) (Var "n")) (App (App (App (Var "help") (Var "b")) (BinOp OpAdd (Var "a") (Var "b"))) (BinOp OpSub (Var "n") (Lit $ LFloat 1.0))) (Var "a"))) (App (App (App (Var "help") (Lit $ LFloat 0.0)) (Lit $ LFloat 1.0)) (Var "n")))
 
 assertRunProc :: Prog -> Expr -> Value -> Assertion
 assertRunProc p@(Prog _ f _ _) expr expected = do

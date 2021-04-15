@@ -144,6 +144,23 @@ exprToSpir (SApp fName args) _ = do
     args' <- mapM getRenamedVar args
     output $ OpFunctionCall tmp retType (SpirId fName) (SpirId <$> args')
     return tmp
+exprToSpir (STupleCtr vars) _ = do
+    loaded <- forM vars $ \var -> exprToSpir (SVar var) (Just TFloat)
+    tmp <- SpirId <$> nextVar
+    retType <- getTypeId (TVector TFloat $ length vars)
+    output $ OpCompositeConstruct tmp retType loaded
+    return tmp
+exprToSpir (STupleProj i tuple) t = do
+    vars <- replicateM 3 nextVar
+    let [iVar, resVar, tmp] = SpirId <$> vars
+    uintType <- getTypeId TUnsignedInt
+    tuple' <- SpirId <$> getRenamedVar tuple
+    varType <- getVarTypeIdWithType tuple' (fromMaybe TFloat t)
+
+    output $ OpConstant iVar uintType (SCUnsigned i)
+    output $ OpAccessChain resVar varType tuple' iVar
+    output $ OpLoad tmp varType resVar
+    return resVar
 exprToSpir (SBinOp op e1 e2) _ = do
     let varType = case op of
             OpAnd -> TBool
@@ -178,6 +195,11 @@ exprToSpir (SLitFloat f) _ = do
     v <- SpirId <$> nextVar
     floatType <- getTypeId TFloat
     output $ OpConstant v floatType (SCFloat f)
+    return v
+exprToSpir (SLitBool b) _ = do
+    v <- SpirId <$> nextVar
+    floatType <- getTypeId TBool
+    output $ OpConstant v floatType (SCBool b)
     return v
 
 insertRenamed :: String -> String -> SpirM ()

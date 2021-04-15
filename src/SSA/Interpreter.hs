@@ -4,6 +4,7 @@ import Control.Monad.Reader
 import Control.Monad.Except
 import Control.Monad.State
 import Data.Bifunctor
+import Data.List (intercalate)
 import qualified Data.Map as Map
 
 import Core.Ops
@@ -18,6 +19,7 @@ type SSAM = ReaderT FunctionsMap (StateT StateEnv (Except Err))
 
 data Value = VFloat Double
            | VBool Bool
+           | VTuple [Value]
            deriving Eq
 
 run :: [SFnDef] -> String -> [Double] -> Either Err Value
@@ -91,6 +93,13 @@ runExpr (SApp f args) = do
     val  <- run' fDef argsVal
     put oldState
     maybe (throwError $ f ++ " hasn't returned anything") return val
+runExpr (STupleCtr vars) = VTuple <$> forM vars (runExpr . SVar)
+runExpr (STupleProj i v) = do
+    values <- gets _values
+    case Map.lookup v values of
+        Just (VTuple vals) -> return $ vals !! i
+        Just val -> throwError $ "Expected tuple, got " ++ show val ++ " instead"
+        Nothing -> throwError $ "Unbound variable " ++ v
 runExpr (SBinOp op e1 e2) = do
     e1' <- runExpr e1
     e2' <- runExpr e2
@@ -114,7 +123,9 @@ runExpr (SUnOp op e) = do
         (OpNot, VBool b) -> return . VBool $ not b
         _ -> throwError $ "Cannot do " ++ show op ++ " on " ++ show e'
 runExpr (SLitFloat f) = return $ VFloat f
+runExpr (SLitBool b) = return $ VBool b
 
 instance Show Value where
     show (VFloat f) = show f
     show (VBool b)  = show b
+    show (VTuple vals) = "(" ++ intercalate ", " (show <$> vals) ++ ")"

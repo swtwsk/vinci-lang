@@ -34,13 +34,6 @@ coreExprToCPS e@Core.App {} k = do
     let (f, args) = aggregateApplications e
     coreExprToCPS f $ \fn -> 
         CPS.CLetCont kName xName kApplied <$> coreExprRec fn args [] kName
-coreExprToCPS (Core.Lam n e) k = do
-    (kName, fName) <- nextVar
-    kApplied <- k fName
-    e' <- coreExprToCPSWithCont e kName
-    -- todo: aggregate Lam a (Lam b (...)) as fn a b c ...
-    --       or just don't unroll it in the first place?
-    return $ CPS.CLetFun (CPS.CFunDef fName kName [n] e') kApplied
 coreExprToCPS (Core.Let n e1 e2) k = do
     (jName, _) <- nextVar
     e1' <- coreExprToCPSWithCont e1 jName
@@ -55,10 +48,19 @@ coreExprToCPS (Core.If cond e1 e2) k = do
     e2' <- coreExprToCPSWithCont e2 k0
     let kif z = return $ CPS.CLetCont k0 x0 kApplied (CPS.CLetCont k1 x1 e1' (CPS.CLetCont k2 x2 e2' (CPS.CIf z k1 k2)))
     coreExprToCPS cond kif
-coreExprToCPS (Core.Lit (Core.LFloat f)) k = do
+coreExprToCPS (Core.TupleCons exprs) k = 
+    coreTupleTranslation exprs [] k
+coreExprToCPS (Core.TupleProj i e) k = do
+    (_, x) <- nextVar
+    kApplied <- k x
+    coreExprToCPS e (\z -> return $ CPS.CLetProj x i z kApplied)
+coreExprToCPS (Core.Lit l) k = do
     (_, xName) <- nextVar
     kApplied <- k xName
-    return $ CPS.CLetVal xName (CPS.CLitFloat f) kApplied
+    let val = case l of
+            Core.LFloat f -> CPS.CLitFloat f
+            Core.LBool b  -> CPS.CLitBool b
+    return $ CPS.CLetVal xName val kApplied
 coreExprToCPS (Core.LetFun (Core.Prog Core.NonRec f args e1) e2) k = do
     (kName, _) <- nextVar
     e1' <- coreExprToCPSWithCont e1 kName
@@ -80,17 +82,13 @@ coreExprToCPS (Core.BinOp op e1 e2) k = do
     let k2 z1 z2 = return $ CPS.CLetPrim resName (CPS.CBinOp op) [z1, z2] kApplied
     let k1 z1 = coreExprToCPS e2 $ k2 z1
     coreExprToCPS e1 k1
-coreExprToCPS _ _ = undefined
+-- coreExprToCPS _ _ = undefined
 
 coreExprToCPSWithCont :: Core.Expr -> CPS.CVar -> TranslateM CPS.CExpr
 coreExprToCPSWithCont (Core.Var x) k = return $ CPS.CAppCont k x
 coreExprToCPSWithCont e@Core.App {} k = do
     let (f, args) = aggregateApplications e
     coreExprToCPS f $ \fn -> coreExprRec fn args [] k
-coreExprToCPSWithCont (Core.Lam n e) k = do
-    (kName, fName) <- nextVar
-    e' <- coreExprToCPSWithCont e kName
-    return $ CPS.CLetVal fName (CPS.CLamCont kName n e') (CPS.CAppCont k fName)
 coreExprToCPSWithCont (Core.Let n e1 e2) k = do
     (jName, _) <- nextVar
     e1' <- coreExprToCPSWithCont e1 jName
@@ -103,9 +101,17 @@ coreExprToCPSWithCont (Core.If cond e1 e2) k = do
     e2' <- coreExprToCPSWithCont e2 k
     let kif z = return $ CPS.CLetCont k1 x1 e1' (CPS.CLetCont k2 x2 e2' (CPS.CIf z k1 k2))
     coreExprToCPS cond kif
-coreExprToCPSWithCont (Core.Lit (Core.LFloat f)) k = do
+coreExprToCPSWithCont (Core.TupleCons exprs) k = 
+    coreTupleTranslation exprs [] (return . CPS.CAppCont k)
+coreExprToCPSWithCont (Core.TupleProj i e) k = do
+    (_, x) <- nextVar
+    coreExprToCPS e (\z -> return $ CPS.CLetProj x i z $ CPS.CAppCont k x)
+coreExprToCPSWithCont (Core.Lit l) k = do
     (_, xName) <- nextVar
-    return $ CPS.CLetVal xName (CPS.CLitFloat f) (CPS.CAppCont k xName)
+    let val = case l of
+            Core.LFloat f -> CPS.CLitFloat f
+            Core.LBool b -> CPS.CLitBool b
+    return $ CPS.CLetVal xName val (CPS.CAppCont k xName)
 coreExprToCPSWithCont (Core.LetFun (Core.Prog Core.NonRec f args e1) e2) k = do
     (jName, _) <- nextVar
     e1' <- coreExprToCPSWithCont e1 jName
@@ -127,8 +133,15 @@ coreExprToCPSWithCont (Core.BinOp op e1 e2) k = do
         k2 z1 z2 = return $ CPS.CLetPrim resName (CPS.CBinOp op) [z1, z2] kApplied
         k1 z1 = coreExprToCPS e2 $ k2 z1
     coreExprToCPS e1 k1
-coreExprToCPSWithCont _ _ = undefined
 
 coreExprRec :: CPS.CVar -> [Core.Expr] -> [CPS.CVar] -> CPS.CVar -> TranslateM CPS.CExpr
 coreExprRec fn (h:t) vars kName = coreExprToCPS h (\x -> coreExprRec fn t (x:vars) kName)
 coreExprRec fn [] vars kName    = return $ CPS.CAppFun fn kName (reverse vars)
+
+coreTupleTranslation :: [Core.Expr] -> [CPS.CVar] -> CCont -> TranslateM CPS.CExpr
+coreTupleTranslation (h:t) vars kFun = 
+    coreExprToCPS h (\x -> coreTupleTranslation t (x:vars) kFun)
+coreTupleTranslation [] vars kFun = do
+    (_, x) <- nextVar
+    kApplied <- kFun x
+    return $ CPS.CLetVal x (CPS.CTuple (reverse vars)) kApplied

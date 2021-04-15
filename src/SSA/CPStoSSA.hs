@@ -51,12 +51,21 @@ cExprToSSA :: CPS.CExpr -> TranspileT ()
 cExprToSSA (CPS.CLetVal x (CPS.CLitFloat f) cexpr) = do
     output $ SAssign x (SLitFloat f)
     cExprToSSA cexpr
+cExprToSSA (CPS.CLetVal x (CPS.CLitBool b) cexpr) = do
+    output $ SAssign x (SLitBool b)
+    cExprToSSA cexpr
 cExprToSSA (CPS.CLetVal _x (CPS.CLamCont k y c1) c2) = do
     jumps <- gets _untranspiledJumps
     closure <- ask
     let jumps' = (k, ReturnJumpCont [y] c1, closure):jumps
     modify (\ts -> ts { _untranspiledJumps = jumps' })
     local (insertContType k ReturnCont) $ cExprToSSA c2
+cExprToSSA (CPS.CLetVal x (CPS.CTuple vars) cexpr) = do
+    output $ SAssign x (STupleCtr vars)
+    cExprToSSA cexpr
+cExprToSSA (CPS.CLetProj x i t cexpr) = do
+    output $ SAssign x (STupleProj i t)
+    cExprToSSA cexpr
 cExprToSSA (CPS.CLetCont k x c1 c2) = do
     jumps <- gets _untranspiledJumps
     closure <- ask

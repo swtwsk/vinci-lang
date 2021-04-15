@@ -3,7 +3,7 @@ module Core.LambdaLifting (lambdaLiftProg) where
 -- from "Lambda-Lifting in Quadratic Time"
 
 import Control.Monad.Reader
-import Data.Bifunctor (second)
+import Data.Bifunctor (bimap, second)
 import Data.Functor ((<&>))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -13,7 +13,7 @@ import Core.Utils (aggregateApplications)
 
 type FunName = String
 type Var = String
-type LiftMap = Map.Map FunName [Var] --(Set.Set Var)
+type LiftMap = Map.Map FunName [Var]
 
 type LiftM = Reader LiftMap
 
@@ -31,7 +31,6 @@ parameterLiftDef (Prog t fName args e) = do
 
 parameterLiftExpr :: Expr -> LiftM Expr
 parameterLiftExpr v@(Var _) = applySolutionToExpr v
-parameterLiftExpr (Lam _n _e) = undefined  -- TODO: no lambdas
 parameterLiftExpr l@(Lit _) = return l
 parameterLiftExpr e@App {} = do
     let (f, args) = aggregateApplications e
@@ -43,6 +42,8 @@ parameterLiftExpr (If c e1 e2) = do
     e1' <- parameterLiftExpr e1
     e2' <- parameterLiftExpr e2
     return $ If c' e1' e2'
+parameterLiftExpr (TupleCons exprs) = TupleCons <$> mapM parameterLiftExpr exprs
+parameterLiftExpr (TupleProj i e) = TupleProj i <$> parameterLiftExpr e
 parameterLiftExpr (Let n e1 e2) = do
     e1' <- parameterLiftExpr e1
     e2' <- parameterLiftExpr e2
@@ -82,7 +83,6 @@ blockFloatDef (Prog t fName args e) = Set.insert (Prog t fName args e') fs
 
 blockFloatExpr :: Expr -> (Set.Set Prog, Expr)
 blockFloatExpr v@(Var _) = (Set.empty, v)
-blockFloatExpr (Lam _n _e) = undefined
 blockFloatExpr l@(Lit _) = (Set.empty, l)
 blockFloatExpr (App e1 e2) = (s1 `Set.union` s2, App e1' e2')
     where
@@ -93,6 +93,14 @@ blockFloatExpr (If c e1 e2) = (sc `Set.union` s1 `Set.union` s2, If c' e1' e2')
         (sc, c')  = blockFloatExpr c
         (s1, e1') = blockFloatExpr e1
         (s2, e2') = blockFloatExpr e2
+blockFloatExpr (TupleCons exprs) = (s', TupleCons exprs')
+    where
+        (s', exprs') = extractProgs $ map blockFloatExpr exprs
+        extractProgs :: [(Set.Set Prog, Expr)] -> (Set.Set Prog, [Expr])
+        extractProgs ((s, expr):t) = 
+            bimap (s `Set.union`) (expr:) $ extractProgs t
+        extractProgs [] = (Set.empty, [])
+blockFloatExpr (TupleProj i e) = second (TupleProj i) $ blockFloatExpr e
 blockFloatExpr (Let n e1 e2) = (s1 `Set.union` s2, Let n e1' e2')
     where
         (s1, e1') = blockFloatExpr e1
@@ -114,7 +122,6 @@ freeVariables :: Expr -> Reader (Set.Set Var) (Set.Set Var)
 freeVariables (Var v) = ask <&> \s -> if Set.member v s 
     then Set.empty 
     else Set.singleton v
-freeVariables (Lam _n _e) = undefined
 freeVariables (Lit _) = return Set.empty
 freeVariables (App e1 e2) = do
     fv1 <- freeVariables e1
@@ -125,6 +132,10 @@ freeVariables (If c e1 e2) = do
     fv1 <- freeVariables e1
     fv2 <- freeVariables e2
     return $ fvc `Set.union` fv1 `Set.union` fv2
+freeVariables (TupleCons exprs) = do
+    fvs <- mapM freeVariables exprs
+    return $ foldl1 Set.union fvs
+freeVariables (TupleProj _i e) = freeVariables e
 freeVariables (Let n e1 e2) = do
     fv1 <- freeVariables e1
     fv2 <- local (Set.insert n) (freeVariables e2)

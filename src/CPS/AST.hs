@@ -2,6 +2,7 @@ module CPS.AST where
 
 import Control.Monad.Reader
 import Control.Monad.Zip (mzip)
+import Data.List (intercalate)
 import qualified Data.Map as Map
 
 import Core.Ops (BinOp, UnOp)
@@ -11,9 +12,9 @@ type Var  = String
 type CVar = String
 
 data CExpr = CLetVal Var CVal CExpr             -- letval x = V in K
+           | CLetProj Var Int Var CExpr         -- let x = #i y in K
            | CLetCont CVar Var CExpr CExpr      -- letcont k x = K in K'
            | CLetFun CFunDef CExpr              -- letfun F in K
-        --    | CLetRec CFunDef CExpr
            | CAppCont CVar Var                  -- k x
            | CAppFun Var CVar [Var]             -- f k xs
            | CLetPrim Var CPrimOp [Var] CExpr   -- letprim x = PrimOp [y] in K
@@ -22,7 +23,9 @@ data CExpr = CLetVal Var CVal CExpr             -- letval x = V in K
            deriving Eq
 
 data CVal = CLitFloat Double
+          | CLitBool Bool
           | CLamCont CVar Var CExpr  -- \k x -> K
+          | CTuple [Var]
           deriving Eq
 
 data CPrimOp = CBinOp BinOp 
@@ -52,6 +55,14 @@ instance AlphaEq CExpr where
         cvalEq <- cval1 `alphaReq` cval2
         cexpalphaEqCExpr <- local (const newMaps) (cexpr1 `alphaReq` cexpr2)
         return $ cvalEq && cexpalphaEqCExpr
+    (CLetProj x1 i1 t1 c1) `alphaReq` (CLetProj x2 i2 t2 c2) = do
+        (varMap1, varMap2) <- ask
+        newX <- nextVar
+        let cMaps = (Map.insert x1 newX varMap1, Map.insert x2 newX varMap2)
+        cEq <- local (const cMaps) $ c1 `alphaReq` c2
+        let iEq = i1 == i2
+            tEq = lookupEquality t1 t2 cMaps
+        return $ cEq && iEq && tEq
     (CLetCont k1 x1 c11 c21) `alphaReq` (CLetCont k2 x2 c12 c22) = do
         (varMap1, varMap2) <- ask
         newX <- nextVar
@@ -108,12 +119,16 @@ instance AlphaEq CExpr where
 
 instance AlphaEq CVal where
     (CLitFloat f1) `alphaReq` (CLitFloat f2) = return $ f1 == f2
+    (CLitBool b1) `alphaReq` (CLitBool b2) = return $ b1 == b2
     (CLamCont k1 x1 c1) `alphaReq` (CLamCont k2 x2 c2) = do
         (varMap1, varMap2) <- ask
         (newK, newX) <- mzip nextVar nextVar
         let newMap1 = Map.insert k1 newK $ Map.insert x1 newX varMap1
             newMap2 = Map.insert k2 newK $ Map.insert x2 newX varMap2
         local (const (newMap1, newMap2)) $ c1 `alphaReq` c2
+    (CTuple xs1) `alphaReq` (CTuple xs2) = do
+        maps <- ask
+        return $ all (\(x, y) -> lookupEquality x y maps) $ zip xs1 xs2
     _ `alphaReq` _ = return False
 
 instance AlphaEq CFunDef where
@@ -141,17 +156,20 @@ lookupEquality x1 x2 (varMap1, varMap2) = case (lookup1, lookup2) of
 -- SHOWS
 instance Show CExpr where
     show (CLetVal x cval cexpr) = "letval " ++ x ++ " = (" ++ show cval ++ ") in " ++ show cexpr
+    show (CLetProj x i t c) = "let " ++ x ++ " = π" ++ show i ++ " " ++ t ++ " in " ++ show c
     show (CLetCont k x c1 c2) = "letcont " ++ k ++ " " ++ x ++ " = (" ++ show c1 ++ ") in " ++ show c2
     show (CLetFun f cexpr) = "letfun " ++ show f ++ " in " ++ show cexpr
     show (CAppCont k x) = k ++ " " ++ x
-    show (CAppFun f k args) = f ++ " " ++ k ++ " " ++ unwords args ++ ")"
+    show (CAppFun f k args) = f ++ " " ++ k ++ " " ++ unwords args
     show (CLetPrim x primOp args cexpr) = "letprim " ++ x ++ " = (" ++ show primOp ++ " " ++ unwords args ++ ") in " ++ show cexpr
     show (CIf x k1 k2) = "if " ++ x ++ " then " ++ k1 ++ " else " ++ k2
     show (CLetFix f k args c1 c2) = "letfix " ++ f ++ " " ++ k ++ " " ++ unwords args ++ " = (" ++ show c1 ++ ") in " ++ show c2
 
 instance Show CVal where
     show (CLitFloat f) = show f
+    show (CLitBool b) = show b
     show (CLamCont k x cexpr) = "λ " ++ k ++ " " ++ x ++ " -> " ++ show cexpr
+    show (CTuple vars) = "(" ++ intercalate ", " vars ++ ")"
 
 instance Show CPrimOp where
     show (CBinOp op) = show op
