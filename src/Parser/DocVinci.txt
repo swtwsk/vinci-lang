@@ -42,10 +42,10 @@ The reserved words used in Vinci are the following:
   | ``Bool`` | ``False`` | ``Float`` | ``Int``
   | ``True`` | ``and`` | ``else`` | ``if``
   | ``in`` | ``let`` | ``not`` | ``struct``
-  | ``then`` |  |  |
+  | ``then`` | ``type`` |  |
 
 The symbols used in Vinci are the following:
-  | ;; | = | . | (
+  | = | ;; | . | (
   | , | ) | : | -
   | * | / | % | +
   | < | <= | > | >=
@@ -64,8 +64,8 @@ All other symbols are terminals.
 
   | //Program// | -> | //[Phrase]//
   | //Phrase// | -> | //LetDef//
-  |  |  **|**  | //Expr//
   |  |  **|**  | //StructDef//
+  |  |  **|**  | ``type`` //SIdent// ``=`` //Type//
   | //[Phrase]// | -> | **eps**
   |  |  **|**  | //Phrase// ``;;`` //[Phrase]//
   | //LetDef// | -> | ``let`` //[LetBind]//

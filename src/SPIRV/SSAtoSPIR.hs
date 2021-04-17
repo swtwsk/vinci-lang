@@ -6,17 +6,16 @@ import Control.Monad.RWS
 import Data.Bifunctor (first, second)
 import Data.DList (DList, toList)
 import qualified Data.Map as Map
-import Data.Maybe (fromMaybe)
 
 import Core.Ops
+import LibraryList (spirLibraryList)
 import SSA.AST
-import SPIRV.LibraryList (libraryList)
 import SPIRV.SpirOps
 import SPIRV.Types
 import Utils.DList (output)
 import Utils.VarSupply (fromInfiniteList)
 
-data ReaderEnv = ReaderEnv { _funs :: Map.Map String SpirType }
+type ReaderEnv = ()
 
 data StateEnv = StateEnv { _typeIds   :: TypeIdsMap
                          , _renames   :: Map.Map String String
@@ -44,24 +43,24 @@ ssaToSpir' fnDefs = (typesToOps $ _typeIds finalSt, toList ops)
         (finalSt, ops) = swap1_3 execRWS readerEnv initialStateEnv $
             mapM_ getTypeId (snd <$> funs) >> mapM_ fnDefToSpir fnDefs
 
-        readerEnv = ReaderEnv { _funs = libraryList `Map.union` Map.fromList funs }
+        readerEnv = ()
         initialStateEnv = StateEnv 
             { _typeIds = Map.empty
             , _renames = Map.empty
             , _argTypes = Map.empty
             , _varSupply = [show i | i <- [(61 :: Int)..]] }
-        funs = flip fmap fnDefs $ \(SFnDef fName args _ _) -> 
-                (fName, TFun (TVector TFloat 3) (TPointer StorFunction TFloat <$ args))
+        funs = flip fmap fnDefs $ \(SFnDef fName rt args _ _) -> 
+                (fName, TFun rt ((\(SArg (Var _ t)) -> TPointer StorFunction t) <$> args))
 
 fnDefToSpir :: SFnDef -> SpirM ()
-fnDefToSpir (SFnDef fName fArgs block labelled) = do
-    ft <- asks ((Map.! fName) . _funs)
-    let (TFun rt ats) = ft
+fnDefToSpir (SFnDef fName rt fArgs block labelled) = do
     retType  <- getTypeId rt
-    funType  <- getTypeId ft
+    let ats  = (\(SArg a) -> TPointer StorFunction $ _varType a) <$> fArgs
+    funType  <- getTypeId $ TFun rt ats
     output $ OpFunction (SpirId fName) retType FCNone funType
 
-    renamedArgs <- mapM (\(SArg arg) -> (arg, ) <$> buildVar ((arg ++ "_")++)) fArgs
+    renamedArgs <- forM fArgs $ \(SArg (Var arg _)) -> 
+                        (arg, ) <$> buildVar ((arg ++ "_")++)
     argTypes <- zipWithM processArgs renamedArgs ats
     renamedLabels <- mapM (\(SLabelled (SLabel l) _ _) -> ('@':l, ) <$> nextVar) labelled
     let renameMap = Map.fromList (renamedArgs ++ renamedLabels)
@@ -88,17 +87,17 @@ labelledToSpir :: SLabelledBlock -> SpirM ()
 labelledToSpir (SLabelled l phiNodes block) = do
     l' <- getRenamedLabel l
     output $ OpLabel (SpirId l')
-    renamedPhiVars <- forM phiNodes $ \(SPhiNode var args) -> do
+    renamedPhiVars <- forM phiNodes $ \(SPhiNode (Var var t) args) -> do
         var'  <- nextVar
         args' <- mapM getRenamed args
-        varType <- getVarTypeId (SpirId var')
+        varType <- getTypeId (TPointer StorFunction t)
         output $ OpPhi (SpirId var') varType args'
         return (var, var')
     let renameMap = Map.fromList renamedPhiVars
     modify $ \st -> st { _renames = Map.union renameMap (_renames st) }
     blockToSpir block
     where
-        getRenamed (pl, SArg a) = do
+        getRenamed (pl, a) = do
             pl' <- getRenamedLabel pl
             a'  <- getRenamedVar a
             return (SpirId a', SpirId pl')
@@ -107,11 +106,11 @@ blockToSpir :: SBlock -> SpirM ()
 blockToSpir (SBlock stmts) = forM_ stmts stmtToSpir
 
 stmtToSpir :: SStmt -> SpirM ()
-stmtToSpir (SAssign var expr) = do
+stmtToSpir (SAssign (Var var t) expr) = do
     -- var' <- nextVar  CAN BE FORWARD REFERENCED!
     var' <- getRenamedVar var
-    varType <- getVarTypeId (SpirId var')
-    tmp  <- exprToSpir expr Nothing
+    varType <- getTypeId (TPointer StorFunction t)
+    tmp  <- exprToSpir expr
     output $ OpVariable (SpirId var') varType StorFunction
     output $ OpStore (SpirId var') tmp
     insertRenamed var var'
@@ -119,53 +118,52 @@ stmtToSpir (SGoto l) = do
     l' <- getRenamedLabel l
     output $ OpBranch (SpirId l')
 stmtToSpir (SReturn expr) = do
-    tmp <- exprToSpir expr Nothing
+    tmp <- exprToSpir expr
     output $ OpReturnValue tmp
 stmtToSpir (SIf expr l1 l2) = do
-    tmp <- exprToSpir expr (Just TBool)
+    tmp <- exprToSpir expr
     l1' <- getRenamedLabel l1
     l2' <- getRenamedLabel l2
     output $ OpBranchConditional tmp (SpirId l1') (SpirId l2')
 
-exprToSpir :: SExpr -> Maybe SpirType -> SpirM SpirId
-exprToSpir (SVar var) t = do
-    var' <- SpirId <$> getRenamedVar var
+exprToSpir :: SExpr -> SpirM SpirId
+exprToSpir (SVar (Var vName t)) = do
+    var' <- SpirId <$> getRenamedVar vName
     tmp  <- SpirId <$> nextVar
-    varType <- getVarTypeIdWithType var' (fromMaybe TFloat t)
+    varType <- getTypeId t
     output $ OpLoad tmp varType var'
     return tmp
-exprToSpir (SApp fName args) _ = do
-    funType <- asks ((Map.! fName) . _funs)
-    let (TFun rt _) = funType
+exprToSpir (SApp (Var fName fType) args) = do
+    let (TFun rt _) = fType
     retType <- getTypeId rt
     tmp <- SpirId <$> nextVar
-    args' <- mapM getRenamedVar args
-    output $ OpFunctionCall tmp retType (SpirId fName) (SpirId <$> args')
+    args' <- mapM getRenamedVar (_varName <$> args)
+    -- TODO: OpExtInst is looking up for "extension", should not be hardcoded
+    output $ case Map.lookup fName spirLibraryList of
+        Just fName' -> OpExtInst tmp retType (SpirId "1") fName' (SpirId <$> args')
+        Nothing     -> OpFunctionCall tmp retType (SpirId fName) (SpirId <$> args')
     return tmp
-exprToSpir (STupleCtr vars) _ = do
-    loaded <- forM vars $ \var -> exprToSpir (SVar var) (Just TFloat)
+exprToSpir (STupleCtr vars) = do
+    loaded <- forM vars $ \var -> exprToSpir (SVar var)
     tmp <- SpirId <$> nextVar
     retType <- getTypeId (TVector TFloat $ length vars)
     output $ OpCompositeConstruct tmp retType loaded
     return tmp
-exprToSpir (STupleProj i tuple) t = do
+exprToSpir (STupleProj i (Var tuple t)) = do
     vars <- replicateM 3 nextVar
     let [iVar, resVar, tmp] = SpirId <$> vars
     uintType <- getTypeId TUnsignedInt
     tuple' <- SpirId <$> getRenamedVar tuple
-    varType <- getVarTypeIdWithType tuple' (fromMaybe TFloat t)
+    let (TVector t' _) = t
+    varType <- getTypeId t'
 
     output $ OpConstant iVar uintType (SCUnsigned i)
     output $ OpAccessChain resVar varType tuple' iVar
     output $ OpLoad tmp varType resVar
     return resVar
-exprToSpir (SBinOp op e1 e2) _ = do
-    let varType = case op of
-            OpAnd -> TBool
-            OpOr  -> TBool
-            _     -> TFloat
-    t1 <- exprToSpir e1 (Just varType)
-    t2 <- exprToSpir e2 (Just varType)
+exprToSpir (SBinOp op e1 e2) = do
+    t1 <- exprToSpir e1
+    t2 <- exprToSpir e2
     v  <- SpirId <$> nextVar
     floatType <- getTypeId TFloat
     boolType  <- getTypeId TBool
@@ -180,8 +178,8 @@ exprToSpir (SBinOp op e1 e2) _ = do
         OpEq -> OpFOrdEqual v floatType t1 t2
         OpLT -> OpFOrdLessThan v floatType t1 t2
     return v
-exprToSpir (SUnOp op e) _ = do
-    te <- exprToSpir e (Just $ if op == OpNeg then TFloat else TBool)
+exprToSpir (SUnOp op e) = do
+    te <- exprToSpir e
     v  <- SpirId <$> nextVar
     floatType <- getTypeId TFloat
     boolType  <- getTypeId TBool
@@ -189,12 +187,12 @@ exprToSpir (SUnOp op e) _ = do
         OpNeg -> OpFNegate v floatType te
         OpNot -> OpLogicalNot v boolType te
     return v
-exprToSpir (SLitFloat f) _ = do
+exprToSpir (SLitFloat f) = do
     v <- SpirId <$> nextVar
     floatType <- getTypeId TFloat
     output $ OpConstant v floatType (SCFloat f)
     return v
-exprToSpir (SLitBool b) _ = do
+exprToSpir (SLitBool b) = do
     v <- SpirId <$> nextVar
     floatType <- getTypeId TBool
     output $ OpConstant v floatType (SCBool b)
@@ -216,15 +214,6 @@ getRenamedVar var = do
 
 getRenamedLabel :: SLabel -> SpirM String
 getRenamedLabel (SLabel l) = getRenamedVar ('@':l)
-
-getVarTypeId :: SpirId -> SpirM SpirId
-getVarTypeId var = getVarTypeIdWithType var TFloat
-
-getVarTypeIdWithType :: SpirId -> SpirType -> SpirM SpirId
-getVarTypeIdWithType var t = do
-    argTypes <- gets _argTypes
-    getTypeId $ 
-        fromMaybe (TPointer StorFunction t) (Map.lookup var argTypes)
 
 -- WALKAROUND: Apparently State, Writer and Data.Map get confused when it comes
 -- to sequencing operations.

@@ -29,7 +29,7 @@ run defs mainName args = case run'' of
     Left err -> Left err
     where
         run'' = runExcept (evalStateT (runReaderT (run' main args') funs) st)
-        funs  = Map.fromList $ fmap (\f@(SFnDef fName _ _ _) -> (fName, f)) defs
+        funs  = Map.fromList $ fmap (\f@(SFnDef fName _ _ _ _) -> (fName, f)) defs
         main  = funs Map.! mainName
         args' = VFloat <$> args
         st = StateEnv { _values = Map.empty
@@ -37,9 +37,9 @@ run defs mainName args = case run'' of
                       , _currentLabel = SLabel $ mainName ++ "_init" }
 
 run' :: SFnDef -> [Value] -> SSAM (Maybe Value)
-run' (SFnDef fName fArgs block labelled) args = put st >> runBlock block
+run' (SFnDef fName _ fArgs block labelled) args = put st >> runBlock block
     where
-        valuesList = (\(SArg arg, f) -> (arg, f)) <$> zip fArgs args
+        valuesList = (\(SArg (Var arg _), f) -> (arg, f)) <$> zip fArgs args
         labelled' = (\lb@(SLabelled l _ _) -> (l, lb)) <$> labelled
         st = StateEnv { _values = Map.fromList valuesList
                       , _labelled = Map.fromList labelled'
@@ -51,8 +51,8 @@ runLabelled (SLabelled l phis block) lastLabel = do
     modify $ \st -> st { _currentLabel = l }
     runBlock block
     where
-        phiAssignments = map (\(a, b) -> SAssign a (SVar b)) phis'
-        phis' = second ((\(SArg a) -> a) . getArg) . phiToPair <$> phis
+        phiAssignments = map (\(a@(Var _ t), b) -> SAssign a (SVar (Var b t))) phis'
+        phis' = second getArg . phiToPair <$> phis
         phiToPair (SPhiNode v labelArgPair) = (v, labelArgPair)
         getArg = head . map snd . filter (\(l', _) -> l' == lastLabel)
 
@@ -60,7 +60,7 @@ runBlock :: SBlock -> SSAM (Maybe Value)
 runBlock (SBlock stmts) = last <$> mapM runStmt stmts
 
 runStmt :: SStmt -> SSAM (Maybe Value)
-runStmt (SAssign v e) = do
+runStmt (SAssign (Var v _) e) = do
     e' <- runExpr e
     st <- get
     let values  = _values st
@@ -82,19 +82,19 @@ runStmt (SIf cond b1 b2) = do
         _ -> throwError $ show cond ++ " is not a proper condition"
 
 runExpr :: SExpr -> SSAM Value
-runExpr (SVar var) = do
+runExpr (SVar (Var var _)) = do
     values <- gets _values
     let value = Map.lookup var values
     maybe (throwError $ "Unbound variable " ++ var) return value
-runExpr (SApp f args) = do
+runExpr (SApp (Var f _) args) = do
     oldState <- get
     fDef <- asks (Map.! f)
-    let argsVal = (_values oldState Map.!) <$> args
+    let argsVal = (_values oldState Map.!) . _varName <$> args
     val  <- run' fDef argsVal
     put oldState
     maybe (throwError $ f ++ " hasn't returned anything") return val
 runExpr (STupleCtr vars) = VTuple <$> forM vars (runExpr . SVar)
-runExpr (STupleProj i v) = do
+runExpr (STupleProj i (Var v _)) = do
     values <- gets _values
     case Map.lookup v values of
         Just (VTuple vals) -> return $ vals !! i

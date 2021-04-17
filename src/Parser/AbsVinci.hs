@@ -20,6 +20,7 @@ data Phrase a
     = Value a (LetDef a)
     | Expression a (Expr a)
     | StructDecl a (StructDef a)
+    | TypeSynon a SIdent (Type a)
     deriving (Ord, Show, Read, Functor, Foldable, Traversable)
 
 data LetDef a = Let a [LetBind a]
@@ -217,6 +218,7 @@ instance HasPosition (Phrase BNFC'Position) where
         Value p _ -> p
         Expression p _ -> p
         StructDecl p _ -> p
+        TypeSynon p _ _ -> p
 
 instance HasPosition (LetDef BNFC'Position) where
     hasPosition = \case

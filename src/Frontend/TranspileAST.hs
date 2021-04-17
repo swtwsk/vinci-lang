@@ -17,6 +17,8 @@ instance Transpilable (Abs.Phrase a) Phrase where
     transpile (Abs.Value _ letdef) = Value (transpile letdef)
     transpile (Abs.Expression _ expr) = Expression (transpile expr)
     transpile (Abs.StructDecl _ sdef) = StructDecl (transpile sdef)
+    transpile (Abs.TypeSynon _ sident t) = 
+        TypeSynonym (extractSIdent sident) (transpile t)
 
 instance Transpilable (Abs.LetDef a) LetDef where
     transpile (Abs.Let _ letbind) = Let (transpile <$> letbind)

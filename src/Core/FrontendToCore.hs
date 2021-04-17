@@ -11,34 +11,42 @@ import Utils.VarSupply
 
 type SuppM = VarSupply String
 
-data ProgArg = ProgVar String | ProgTuple [ProgArg]
+data ProgArg = ProgVar String (Maybe Type) | ProgTuple [ProgArg] (Maybe Type)
 
-frontendProgramToCore :: F.Program -> [Prog]
+frontendProgramToCore :: F.Program -> [Prog Maybe]
 frontendProgramToCore (F.Prog phrases) = 
     phrases >>= (flip evalVarSupply supp . phraseToCore)
     where
         supp = ["&" ++ show x | x <- [(0 :: Int) ..]]
 
 -- it shouldn't be Prog
-phraseToCore :: F.Phrase -> SuppM [Prog]
+phraseToCore :: F.Phrase -> SuppM [Prog Maybe]
 phraseToCore (F.Value (F.Let binds)) = mapM bindToProg binds
-    where
-        bindToProg :: F.LetBind -> SuppM Prog
-        bindToProg (F.ProcBind name vis _resType e) = do
-            (vis'', e') <- extractLam e
-            vis' <- mapM extractName vis
-            e'' <- exprToCore e'
-            (args, e''') <- extractProgArgs (vis' ++ vis'') e''
-            return $ Prog name args e'''
-        bindToProg F.ConstBind {} = undefined
 phraseToCore _ = undefined
 
-exprToCore :: F.Expr -> SuppM Expr
-exprToCore (F.EId var) = return $ Var var
+bindToProg :: F.LetBind -> SuppM (Prog Maybe)
+bindToProg (F.ProcBind name vis rType e) = do
+    (vis'', e') <- extractLam e
+    vis' <- mapM extractName vis
+    e'' <- exprToCore e'
+    (args, e''') <- extractProgArgs (vis' ++ vis'') e''
+    let lTypes = map getProgArgType vis'
+    let fType = case (sequence lTypes, rType) of
+            (Just tps, Just r) -> 
+                Just $ foldr TFun (typeToCore r) tps
+            _ -> Nothing
+    return $ Prog (VarId name fType) args e'''
+bindToProg F.ConstBind {} = undefined
+
+exprToCore :: F.Expr -> SuppM (Expr Maybe)
+exprToCore (F.EId var) = return $ Var (VarId var Nothing)
 exprToCore (F.EFloat f) = return . Lit $ LFloat f
 exprToCore  F.ETrue = return . Lit $ LBool True
 exprToCore  F.EFalse = return . Lit $ LBool False
 exprToCore (F.EApp e1 e2) = App <$> exprToCore e1 <*> exprToCore e2
+exprToCore (F.ETyped (F.EId var) t) = 
+    return . Var . VarId var . Just $ typeToCore t
+exprToCore (F.ETyped _e _t) = undefined
 exprToCore (F.ENeg e) = unOpToCore OpNeg e
 exprToCore (F.ENot e) = unOpToCore OpNot e
 exprToCore (F.EMul e1 e2) = binOpToCore OpMul e1 e2
@@ -70,25 +78,24 @@ exprToCore (F.ETuple exprs) = do
             (args, e') <- extractLam e
             args' <- (++ args) <$> mapM extractName lambdas
             e'' <- exprToCore e'
-            tmp <- nextVar
+            tmp <- flip VarId Nothing <$> nextVar
             (args'', e''') <- extractProgArgs args' e''
             return (Prog tmp args'' e''':fns, Var tmp:exs)
         foldFn e (fns, exs) = exprToCore e <&> \x -> (fns, x:exs)
 exprToCore (F.EInt _i) = undefined
 exprToCore (F.EFieldGet _expr _field) = undefined
-exprToCore (F.ETyped _expr _type) = undefined
 exprToCore (F.ECons _fields) = undefined
 exprToCore (F.ENamedCons _name _fields) = undefined
 
-letBindToCore :: F.LetBind -> Expr -> SuppM Expr
+letBindToCore :: F.LetBind -> Expr Maybe -> SuppM (Expr Maybe)
 letBindToCore (F.ConstBind (F.LambdaVId n) e1) e2 = do
     (args, e1') <- extractLam e1
     e1'' <- exprToCore e1'
     if null args 
-        then return $ Let n e1'' e2 
+        then return $ Let (VarId n Nothing) e1'' e2 
         else do 
             (args', e1''') <- extractProgArgs args e1''
-            return $ LetFun (Prog n args' e1''') e2
+            return $ LetFun (Prog (VarId n Nothing) args' e1''') e2
 letBindToCore (F.ConstBind (F.TypedVId _lvi _t) _e1) _e2 = undefined
 letBindToCore (F.ConstBind F.WildVId _) e2 = return e2
 letBindToCore (F.ConstBind (F.TupleVId lambdas) e1) e2 = do
@@ -96,29 +103,33 @@ letBindToCore (F.ConstBind (F.TupleVId lambdas) e1) e2 = do
     lambdas' <- mapM extractName lambdas
     e1'' <- exprToCore e1'
     if not (null args) then undefined else do
-        tmp <- nextVar
+        tmp <- flip VarId Nothing <$> nextVar
         return $ Let tmp e1'' $ 
             foldr (\(i, el) -> f el (TupleProj i (Var tmp))) e2 (zip [0..] lambdas')
     where
-        f :: ProgArg -> Expr -> Expr -> Expr
-        f (ProgVar n) e1' e2' = Let n e1' e2'
-        f (ProgTuple tuple) e1' e2' = 
+        f :: ProgArg -> Expr Maybe -> Expr Maybe -> Expr Maybe
+        f (ProgVar n ty) e1' e2' = Let (VarId n ty) e1' e2'
+        f (ProgTuple tuple _ty) e1' e2' = 
             foldr (\(i, el) -> f el (TupleProj i e1')) e2' (zip [0..] tuple)
-letBindToCore (F.ProcBind pName lambdas _type e1) e2 = do
+letBindToCore (F.ProcBind pName lambdas rType e1) e2 = do
     (args, e1') <- extractLam e1
     lambdas' <- mapM extractName lambdas
     let args' = lambdas' ++ args
     e1'' <- exprToCore e1'
     (args'', e1''') <- extractProgArgs args' e1''
-    return $ LetFun (Prog pName args'' e1''') e2
+    let lTypes = map getProgArgType lambdas'
+        fType = case (sequence lTypes, rType) of
+            (Just tps, Just r) -> Just $ foldr TFun (typeToCore r) tps
+            _ -> Nothing
+    return $ LetFun (Prog (VarId pName fType) args'' e1''') e2
 
-extractProgArgs :: [ProgArg] -> Expr -> SuppM ([Name], Expr)
-extractProgArgs (ProgVar n:t) e = do
+extractProgArgs :: [ProgArg] -> Expr Maybe -> SuppM ([VarId Maybe], Expr Maybe)
+extractProgArgs (ProgVar n ty:t) e = do
     (args, e') <- extractProgArgs t e
-    return (n:args, e')
-extractProgArgs (ProgTuple tuple:t) e = do
+    return (VarId n ty:args, e')
+extractProgArgs (ProgTuple tuple ty:t) e = do
     (args, e') <- extractProgArgs t e
-    tmp <- nextVar
+    tmp <- flip VarId ty <$> nextVar
     proj <- foldrM (\(i, el) acc -> do
         (single, e'') <- extractProgArgs [el] acc
         let [tmp'] = single
@@ -126,6 +137,10 @@ extractProgArgs (ProgTuple tuple:t) e = do
         ) e' (zip [0..] tuple)
     return (tmp:args, proj)
 extractProgArgs [] e = return ([], e)
+
+getProgArgType :: ProgArg -> Maybe Type
+getProgArgType (ProgVar _ t) = t
+getProgArgType (ProgTuple _ t) = t
 
 extractLam :: F.Expr -> SuppM ([ProgArg], F.Expr)
 extractLam (F.ELambda vis e) = do
@@ -136,13 +151,30 @@ extractLam e = return ([], e)
 
 -- FOR NOW
 extractName :: F.LambdaVI -> SuppM ProgArg
-extractName (F.LambdaVId n) = return $ ProgVar n
-extractName F.WildVId = ProgVar <$> nextVar
-extractName (F.TypedVId n _t) = extractName n
-extractName (F.TupleVId lambdas) = ProgTuple <$> mapM extractName lambdas
+extractName (F.LambdaVId n) = return (ProgVar n Nothing)
+extractName F.WildVId = (`ProgVar` Nothing) <$> nextVar
+extractName (F.TypedVId n t) = do
+    n' <- extractName n
+    let t' = typeToCore t
+    case n' of
+        ProgVar nvar _ -> return (ProgVar nvar $ Just t')
+        ProgTuple tpl _ -> return (ProgTuple tpl $ Just t')
+extractName (F.TupleVId lambdas) = do
+    lambdas' <- mapM extractName lambdas
+    return $ ProgTuple lambdas' Nothing
 
-unOpToCore :: UnOp -> F.Expr -> SuppM Expr
+unOpToCore :: UnOp -> F.Expr -> SuppM (Expr Maybe)
 unOpToCore op e = UnOp op <$> exprToCore e
 
-binOpToCore :: BinOp -> F.Expr -> F.Expr -> SuppM Expr
+binOpToCore :: BinOp -> F.Expr -> F.Expr -> SuppM (Expr Maybe)
 binOpToCore op e1 e2 = BinOp op <$> exprToCore e1 <*> exprToCore e2
+
+typeToCore :: F.Type -> Type
+typeToCore F.TInt = undefined
+typeToCore F.TFloat = TFloat
+typeToCore F.TBool = TBool
+typeToCore (F.TStruct structName) = case structName of
+    'V':'e':'c':i -> TTuple TFloat (read i)
+    _ -> undefined
+typeToCore (F.TPoly _) = undefined
+typeToCore (F.TFun t1 t2) = TFun (typeToCore t1) (typeToCore t2)

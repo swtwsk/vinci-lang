@@ -30,24 +30,24 @@ arithmeticTests = testGroup "Arithmetics"
     , testCase "Comparison Greater Than" $ assertProgram greaterThanLine greaterThanAbsLine
     , testCase "Transpiled comparison Greater Than" $ assertTranspiledProgram greaterThanLine greaterThanASTLine ]
     where
-        addLine = "1 + 1;;"
-        addAbsLine = Abs.Prog Nothing [Abs.Expression Nothing (Abs.EAdd Nothing (Abs.EInt Nothing 1) (Abs.EInt Nothing 1))]
-        addASTLine = Prog [Expression (EAdd (EInt 1) (EInt 1))]
-        subtractLine = "2 - 2;;"
-        subtractAbsLine = Abs.Prog Nothing [Abs.Expression Nothing (Abs.ESub Nothing (Abs.EInt Nothing 2) (Abs.EInt Nothing 2))]
-        subtractASTLine = Prog [Expression (ESub (EInt 2) (EInt 2))]
-        divLine = "2 * 3.0 / 4;;"
-        divAbsLine = Abs.Prog Nothing [Abs.Expression Nothing (Abs.EDiv Nothing (Abs.EMul Nothing (Abs.EInt Nothing 2) (Abs.EFloat Nothing 3.0)) (Abs.EInt Nothing 4))]
-        divASTLine = Prog [Expression (EDiv (EMul (EInt 2) (EFloat 3.0)) (EInt 4))]
-        modLine = "10 % 5 == 0;;"
-        modAbsLine = Abs.Prog Nothing [Abs.Expression Nothing (Abs.EEQU Nothing (Abs.EMod Nothing (Abs.EInt Nothing 10) (Abs.EInt Nothing 5)) (Abs.EInt Nothing 0))]
-        modASTLine = Prog [Expression (EEQU (EMod (EInt 10) (EInt 5)) (EInt 0))]
-        lessThanLine = "x < 15;;"
-        lessThanAbsLine = Abs.Prog Nothing [Abs.Expression Nothing (Abs.ELTH Nothing (Abs.EId Nothing (Abs.VIdent "x")) (Abs.EInt Nothing 15))]
-        lessThanASTLine = Prog [Expression (ELTH (EId "x") (EInt 15))]
-        greaterThanLine = "x > -5;;"
-        greaterThanAbsLine = Abs.Prog Nothing [Abs.Expression Nothing (Abs.EGTH Nothing (Abs.EId Nothing (Abs.VIdent "x")) (Abs.ENeg Nothing (Abs.EInt Nothing 5)))]
-        greaterThanASTLine = Prog [Expression (EGTH (EId "x") (ENeg (EInt 5)))]
+        addLine = "let x = 1 + 1;;"
+        addAbsLine = letX $ Abs.EAdd Nothing (Abs.EInt Nothing 1) (Abs.EInt Nothing 1)
+        addASTLine = progX $ EAdd (EInt 1) (EInt 1)
+        subtractLine = "let x = 2 - 2;;"
+        subtractAbsLine = letX $ Abs.ESub Nothing (Abs.EInt Nothing 2) (Abs.EInt Nothing 2)
+        subtractASTLine = progX (ESub (EInt 2) (EInt 2))
+        divLine = "let x = 2 * 3.0 / 4;;"
+        divAbsLine = letX $ Abs.EDiv Nothing (Abs.EMul Nothing (Abs.EInt Nothing 2) (Abs.EFloat Nothing 3.0)) (Abs.EInt Nothing 4)
+        divASTLine = progX $ EDiv (EMul (EInt 2) (EFloat 3.0)) (EInt 4)
+        modLine = "let x = 10 % 5 == 0;;"
+        modAbsLine = letX $ Abs.EEQU Nothing (Abs.EMod Nothing (Abs.EInt Nothing 10) (Abs.EInt Nothing 5)) (Abs.EInt Nothing 0)
+        modASTLine = progX $ EEQU (EMod (EInt 10) (EInt 5)) (EInt 0)
+        lessThanLine = "let x = x < 15;;"
+        lessThanAbsLine = letX $ Abs.ELTH Nothing (Abs.EId Nothing (Abs.VIdent "x")) (Abs.EInt Nothing 15)
+        lessThanASTLine = progX $ ELTH (EId "x") (EInt 15)
+        greaterThanLine = "let x = x > -5;;"
+        greaterThanAbsLine = letX $ Abs.EGTH Nothing (Abs.EId Nothing (Abs.VIdent "x")) (Abs.ENeg Nothing (Abs.EInt Nothing 5))
+        greaterThanASTLine = progX $ EGTH (EId "x") (ENeg (EInt 5))
 
 conditionalTests :: TestTree
 conditionalTests = testGroup "Conditional"
@@ -57,13 +57,13 @@ conditionalTests = testGroup "Conditional"
     , testCase "_ or _ and _" $ assertProgram andOrLine andOrAbsLine
     , testCase "Transpiled _ or _ and _" $ assertTranspiledProgram andOrLine andOrASTLine ]
     where
-        ifLine = "if not False then 42 else 112;;"
-        ifAbsLine = Abs.Prog Nothing [Abs.Expression Nothing (Abs.ECond Nothing (Abs.ENot Nothing (Abs.EFalse Nothing)) (Abs.EInt Nothing 42) (Abs.EInt Nothing 112))]
-        ifASTLine = Prog [Expression (ECond (ENot EFalse) (EInt 42) (EInt 112))]
+        ifLine = "let x = if not False then 42 else 112;;"
+        ifAbsLine = letX $ Abs.ECond Nothing (Abs.ENot Nothing (Abs.EFalse Nothing)) (Abs.EInt Nothing 42) (Abs.EInt Nothing 112)
+        ifASTLine = progX $ ECond (ENot EFalse) (EInt 42) (EInt 112)
         ifSyntaxErrorLine = "if True then 42;;"
-        andOrLine = "x <= 3 || x >= 5 && x != 6;;"
-        andOrAbsLine = Abs.Prog Nothing [Abs.Expression Nothing (Abs.EOr Nothing (Abs.ELE Nothing (Abs.EId Nothing (Abs.VIdent "x")) (Abs.EInt Nothing 3)) (Abs.EAnd Nothing (Abs.EGE Nothing (Abs.EId Nothing (Abs.VIdent "x")) (Abs.EInt Nothing 5)) (Abs.ENE Nothing (Abs.EId Nothing (Abs.VIdent "x")) (Abs.EInt Nothing 6))))]
-        andOrASTLine = Prog [Expression (EOr (ELE (EId "x") (EInt 3)) (EAnd (EGE (EId "x") (EInt 5)) (ENE (EId "x") (EInt 6))))]
+        andOrLine = "let x = x <= 3 || x >= 5 && x != 6;;"
+        andOrAbsLine = letX $ Abs.EOr Nothing (Abs.ELE Nothing (Abs.EId Nothing (Abs.VIdent "x")) (Abs.EInt Nothing 3)) (Abs.EAnd Nothing (Abs.EGE Nothing (Abs.EId Nothing (Abs.VIdent "x")) (Abs.EInt Nothing 5)) (Abs.ENE Nothing (Abs.EId Nothing (Abs.VIdent "x")) (Abs.EInt Nothing 6)))
+        andOrASTLine = progX $ EOr (ELE (EId "x") (EInt 3)) (EAnd (EGE (EId "x") (EInt 5)) (ENE (EId "x") (EInt 6)))
 
 functionTests :: TestTree
 functionTests = testGroup "Function"
@@ -75,9 +75,9 @@ functionTests = testGroup "Function"
         recLine = "let l i c =\n  if i == limit then c\n  else l (i + 1) (c + 1);;"
         recAbsLine = Abs.Prog Nothing [Abs.Value Nothing (Abs.Let Nothing [Abs.ProcBind Nothing (Abs.ProcNameId Nothing (Abs.VIdent "l")) [Abs.LetLVI Nothing (Abs.LambdaVId Nothing (Abs.VIdent "i")), Abs.LetLVI Nothing (Abs.LambdaVId Nothing (Abs.VIdent "c"))] (Abs.NoRetType Nothing) (Abs.ECond Nothing (Abs.EEQU Nothing (Abs.EId Nothing (Abs.VIdent "i")) (Abs.EId Nothing (Abs.VIdent "limit"))) (Abs.EId Nothing (Abs.VIdent "c")) (Abs.EApp Nothing (Abs.EApp Nothing (Abs.EId Nothing (Abs.VIdent "l")) (Abs.EAdd Nothing (Abs.EId Nothing (Abs.VIdent "i")) (Abs.EInt Nothing 1))) (Abs.EAdd Nothing (Abs.EId Nothing (Abs.VIdent "c")) (Abs.EInt Nothing 1))))])]
         recASTLine = Prog [Value (Let [ProcBind "l" [LambdaVId "i", LambdaVId "c"] Nothing (ECond (EEQU (EId "i") (EId "limit")) (EId "c") (EApp (EApp (EId "l") (EAdd (EId "i") (EInt 1))) (EAdd (EId "c") (EInt 1))))])]
-        typedLambdaLine = "(\\x, y -> x : \'a -> \'b -> \'a);;"
-        typedLambdaAbsLine = Abs.Prog Nothing [Abs.Expression Nothing (Abs.ETyped Nothing (Abs.ELambda Nothing [Abs.LambdaVId Nothing (Abs.VIdent "x"), Abs.LambdaVId Nothing (Abs.VIdent "y")] (Abs.EId Nothing (Abs.VIdent "x"))) (Abs.TFun Nothing (Abs.TPoly Nothing (Abs.TPolyIdent "\'a")) (Abs.TFun Nothing (Abs.TPoly Nothing (Abs.TPolyIdent "\'b")) (Abs.TPoly Nothing (Abs.TPolyIdent "\'a")))))]
-        typedLambdaASTLine = Prog [Expression (ETyped (ELambda [LambdaVId "x", LambdaVId "y"] (EId "x")) (TFun (TPoly "\'a") (TFun (TPoly "\'b") (TPoly "\'a"))))]
+        typedLambdaLine = "let x = (\\x, y -> x : \'a -> \'b -> \'a);;"
+        typedLambdaAbsLine = letX $ Abs.ETyped Nothing (Abs.ELambda Nothing [Abs.LambdaVId Nothing (Abs.VIdent "x"), Abs.LambdaVId Nothing (Abs.VIdent "y")] (Abs.EId Nothing (Abs.VIdent "x"))) (Abs.TFun Nothing (Abs.TPoly Nothing (Abs.TPolyIdent "\'a")) (Abs.TFun Nothing (Abs.TPoly Nothing (Abs.TPolyIdent "\'b")) (Abs.TPoly Nothing (Abs.TPolyIdent "\'a"))))
+        typedLambdaASTLine = progX $ ETyped (ELambda [LambdaVId "x", LambdaVId "y"] (EId "x")) (TFun (TPoly "\'a") (TFun (TPoly "\'b") (TPoly "\'a")))
 
 tupleTests :: TestTree
 tupleTests = testGroup "Tuple"
@@ -120,9 +120,9 @@ structTests = testGroup "Struct"
         returnLine = "let proc glPos -> VertOuts = { gl_Position = glPos };;"
         returnAbsLine = Abs.Prog Nothing [Abs.Value Nothing (Abs.Let Nothing [Abs.ProcBind Nothing (Abs.ProcNameId Nothing (Abs.VIdent "proc")) [Abs.LetLVI Nothing (Abs.LambdaVId Nothing (Abs.VIdent "glPos"))] (Abs.RetType Nothing (Abs.TStruct Nothing (Abs.SIdent "VertOuts"))) (Abs.ECons Nothing [Abs.FieldDef Nothing (Abs.VIdent "gl_Position") (Abs.EId Nothing (Abs.VIdent "glPos"))])])]
         returnASTLine = Prog [Value (Let [ProcBind "proc" [LambdaVId "glPos"] (Just (TStruct "VertOuts")) (ECons [FieldDef "gl_Position" (EId "glPos")])])]
-        fieldGetLine = "outs.x;;"
-        fieldGetAbsLine = Abs.Prog Nothing [Abs.Expression Nothing (Abs.EFieldGet Nothing (Abs.EId Nothing (Abs.VIdent "outs")) (Abs.VIdent "x"))]
-        fieldGetASTLine = Prog [Expression (EFieldGet (EId "outs") "x")]
+        fieldGetLine = "let x = outs.x;;"
+        fieldGetAbsLine = letX $ Abs.EFieldGet Nothing (Abs.EId Nothing (Abs.VIdent "outs")) (Abs.VIdent "x")
+        fieldGetASTLine = progX $ EFieldGet (EId "outs") "x"
 
 programTests :: TestTree
 programTests = testGroup "Program" 
@@ -150,3 +150,9 @@ expectSyntaxError :: String -> Assertion
 expectSyntaxError line = case lexProgram line of
     Right t -> assertFailure $ "expected syntax error but got " ++ show t
     Left _ -> return ()
+
+letX :: Abs.Expr (Maybe a) -> Abs.Program (Maybe a)
+letX e = Abs.Prog Nothing [Abs.Value Nothing (Abs.Let Nothing [Abs.ConstBind Nothing (Abs.LetLVI Nothing $ Abs.LambdaVId Nothing (Abs.VIdent "x")) e])]
+
+progX :: Expr -> Program
+progX e = Prog [Value $ Let [ConstBind (LambdaVId "x") e]]

@@ -10,6 +10,7 @@ newtype Program = Prog [Phrase] deriving (Eq, Ord, Read)
 data Phrase = Value LetDef
             | Expression Expr
             | StructDecl StructDef
+            | TypeSynonym String Type
             deriving (Eq, Ord, Read)
 
 newtype LetDef = Let [LetBind] 
@@ -81,6 +82,7 @@ instance Show Phrase where
     show (Value letdef) = show letdef
     show (Expression expr) = show expr
     show (StructDecl sdef) = show sdef
+    show (TypeSynonym syn t) = "type " ++ syn ++ " = " ++ show t
 
 instance Show LetDef where
     show (Let letbinds) = "let " ++ intercalate " also " (show <$> letbinds)

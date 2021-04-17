@@ -3,6 +3,7 @@ import Test.Tasty
 import qualified AlphaEqTest
 import qualified ParserTests
 import qualified CoreToCPSTest
+import qualified LambdaLiftingTest
 import qualified TranspileToSSATest
 import qualified InterpreterTests.CoreTest as CoreInterpreterTest
 import qualified InterpreterTests.SSATest as SSAInterpreterTest
@@ -16,7 +17,8 @@ tests = testGroup "Tests"
     , interpretersTests
     , ParserTests.tests
     , CoreToCPSTest.tests
-    , TranspileToSSATest.tests ]
+    , TranspileToSSATest.tests
+    , LambdaLiftingTest.tests ]
 
 interpretersTests :: TestTree
 interpretersTests = testGroup "Interpreters" [ CoreInterpreterTest.tests

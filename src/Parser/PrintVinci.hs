@@ -127,6 +127,7 @@ instance Print (Parser.AbsVinci.Phrase a) where
     Parser.AbsVinci.Value _ letdef -> prPrec i 0 (concatD [prt 0 letdef])
     Parser.AbsVinci.Expression _ expr -> prPrec i 0 (concatD [prt 0 expr])
     Parser.AbsVinci.StructDecl _ structdef -> prPrec i 0 (concatD [prt 0 structdef])
+    Parser.AbsVinci.TypeSynon _ sident type_ -> prPrec i 0 (concatD [doc (showString "type"), prt 0 sident, doc (showString "="), prt 0 type_])
   prtList _ [] = concatD []
   prtList _ (x:xs) = concatD [prt 0 x, doc (showString ";;"), prt 0 xs]
 

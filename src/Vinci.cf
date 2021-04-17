@@ -5,10 +5,11 @@ token SIdent (upper (letter | digit | '_')*) ;   -- struct ident
 token TPolyIdent ('\'' (lower)+ ) ;              -- polymorphic type ident
 
 entrypoints Program ;
-Prog.       Program ::= [Phrase] ;
-Value.      Phrase  ::= LetDef ;                 -- value-definition
-Expression. Phrase  ::= Expr ;                   -- expression
-StructDecl. Phrase  ::= StructDef ;              -- struct declaration
+Prog.                Program ::= [Phrase] ;
+Value.               Phrase  ::= LetDef ;        -- value-definition
+StructDecl.          Phrase  ::= StructDef ;     -- struct declaration
+TypeSynon.           Phrase  ::= "type" SIdent "=" Type ;
+internal Expression. Phrase  ::= Expr ;          -- expression
 
 terminator Phrase ";;" ;
 

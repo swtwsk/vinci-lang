@@ -18,6 +18,7 @@ data SpirOp = OpFunction SpirId SpirId SpirFunctionControl SpirId
             | OpReturnValue SpirId
             | OpFunctionEnd
             | OpFunctionCall SpirId SpirId SpirId [SpirId]
+            | OpExtInst SpirId SpirId SpirId String [SpirId]
             | OpConstant SpirId SpirId SpirConst
             | OpFNegate SpirId SpirId SpirId
             | OpFAdd SpirId SpirId SpirId SpirId
@@ -82,6 +83,9 @@ instance Show SpirOp where
     show OpFunctionEnd = "OpFunctionEnd"
     show (OpFunctionCall res fType fName args) = 
         showOpWithResult res "OpFunctionCall" (fType:fName:args)
+    show (OpExtInst res fType extId fName args) = show res ++ " = OpExtInst " ++ 
+        show fType ++ " " ++ show extId ++ " " ++ fName ++ " " ++ 
+        (if not (null args) then " " else "") ++ unwords (show <$> args)
     show (OpConstant res resType c) = 
         show res ++ " = OpConstant " ++ show resType ++ " " ++ show c
     show (OpFNegate res resT x) = showOpWithResult res "OpFNegate" [resT, x]

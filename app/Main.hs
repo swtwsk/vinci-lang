@@ -7,8 +7,10 @@ import qualified Parser.AbsVinci as Parser (Program)
 import Parser.LexVinci ( Token )
 import Parser.ParVinci ( pProgram, myLexer )
 
+import qualified Core.AST as Core (Prog)
 import Core.FrontendToCore (frontendProgramToCore)
 import Core.LambdaLifting (lambdaLiftProg)
+import Core.TypeChecking (tcProgs)
 import CPS.CoreToCPS (coreToCPS)
 import qualified Frontend.AST as F
 import Frontend.TranspileAST (transpile)
@@ -39,24 +41,36 @@ usage = do
         , "  (files)         Compile content of files into SPIRV."
         , "  -f (files)      Compile content of files into Vinci frontend."
         , "  -c (files)      Compile content of files into Core."
+        , "  -l (files)      Compile content of files into Core after Lambda Lifting."
+        , "  -t (files)      Compile content of files into Core after typechecking."
         , "  -k (files)      Compile content of files into CPS."
         , "  -s (files)      Compile content of files into SSA."
         ]
     exitFailure
 
-data OutputType = Frontend | Core | CPS | SSA | SPIRV | FullSPIRV
+data OutputType = Frontend | Core | LiftedCore | TCCore | CPS | SSA | SPIRV | FullSPIRV
 
 compilationFunction :: OutputType -> (F.Program -> String)
 compilationFunction outputType = case outputType of
-    Frontend  -> show
-    Core      -> show . frontendProgramToCore
-    CPS       -> \x -> unlines $ show . coreToCPS <$> (lambdaLiftProg =<< frontendProgramToCore x)
-    SSA       -> \x -> unlines $ show . cpsToSSA . coreToCPS <$> (lambdaLiftProg =<< frontendProgramToCore x)
-    SPIRV     -> \x -> unlines . fmap show . uncurry (++) . ssaToSpir $ cpsToSSA . coreToCPS <$> (lambdaLiftProg =<< frontendProgramToCore x)
-    FullSPIRV -> \x -> 
-        let (constsTypes, fnOps) = ssaToSpir $ cpsToSSA . coreToCPS <$> 
-                (lambdaLiftProg =<< frontendProgramToCore x) in
-        compileToDemoSpir constsTypes fnOps
+    Frontend   -> show
+    Core       -> show . frontendProgramToCore
+    LiftedCore -> \x -> unlines $ show <$> (lambdaLiftProg =<< frontendProgramToCore x)
+    rest       -> \x -> typeCheckAndCompile rest (lambdaLiftProg =<< frontendProgramToCore x)
+
+typeCheckAndCompile :: OutputType -> [Core.Prog Maybe] -> String
+typeCheckAndCompile outputType progs = case tcProgs progs of
+    Left err -> err
+    Right typeChecked -> case outputType of
+        TCCore     -> unlines $ show <$> typeChecked
+        CPS        -> unlines $ show . coreToCPS <$> typeChecked
+        SSA        -> unlines $ show . cpsToSSA . coreToCPS <$> typeChecked
+        SPIRV      -> unlines . fmap show . uncurry (++) . ssaToSpir $ 
+            cpsToSSA . coreToCPS <$> typeChecked
+        FullSPIRV  ->
+            let (constsTypes, fnOps) = ssaToSpir $ 
+                    cpsToSSA . coreToCPS <$> typeChecked in
+            compileToDemoSpir constsTypes fnOps
+        _ -> "Error?"
 
 parseFile :: OutputType -> FileName -> IO ()
 parseFile outputType filename = do
@@ -76,6 +90,8 @@ main = do
         ["--help"] -> usage
         "-f":fs    -> mapM_ (parseFile Frontend) fs
         "-c":fs    -> mapM_ (parseFile Core) fs
+        "-l":fs    -> mapM_ (parseFile LiftedCore) fs
+        "-t":fs    -> mapM_ (parseFile TCCore) fs
         "-k":fs    -> mapM_ (parseFile CPS) fs
         "-s":fs    -> mapM_ (parseFile SSA) fs
         "-v":fs    -> mapM_ (parseFile SPIRV) fs

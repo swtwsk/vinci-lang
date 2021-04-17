@@ -15,22 +15,22 @@ type EvalM = ReaderT Env (Except Err)
 data Value = VFloat Double
            | VBool Bool
            | VTuple [Value]
-           | VClosure String [String] Expr Env
+           | VClosure String [String] (Expr Maybe) Env
            deriving (Eq)
 
 -- TODO: FIX INTERPRETER
 
-eval :: Prog -> Either Err Value
-eval (Prog fn args e) = pure $ VClosure fn args e Map.empty
+eval :: Prog Maybe -> Either Err Value
+eval (Prog (VarId fn _) args e) = pure $ VClosure fn (_varName <$> args) e Map.empty
 
-evalExpr :: Expr -> Either Err Value
+evalExpr :: Expr Maybe -> Either Err Value
 evalExpr = evalExprEnv Map.empty
 
-evalExprEnv :: Env -> Expr -> Either Err Value
+evalExprEnv :: Env -> Expr Maybe -> Either Err Value
 evalExprEnv env e = runExcept $ runReaderT (eval' e) env
 
-eval' :: Expr -> EvalM Value
-eval' (Var var) = do
+eval' :: Expr Maybe -> EvalM Value
+eval' (Var (VarId var _)) = do
     env <- ask
     maybe (throwError $ "Unbound variable " ++ var) return $ Map.lookup var env
 eval' (Lit l) = case l of
@@ -50,11 +50,11 @@ eval' (If cond e1 e2) = do
     case c of
         VBool b -> if b then eval' e1 else eval' e2
         _ -> throwError $ show cond ++ " hasn't evaluated to bool"
-eval' (Let n e1 e2) = do
+eval' (Let (VarId n _) e1 e2) = do
     e1' <- eval' e1
     local (Map.insert n e1') (eval' e2)
-eval' (LetFun (Prog f args e1) e2) = do
-    f' <- asks (VClosure f args e1)
+eval' (LetFun (Prog (VarId f _) args e1) e2) = do
+    f' <- asks (VClosure f (_varName <$> args) e1)
     local (Map.insert f f') (eval' e2)
 eval' (BinOp op e1 e2) = do
     e1' <- eval' e1

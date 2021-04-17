@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5d0f01d73b018f6f7e3d25ed903c82569d071dbdee86f1b4c445f88ffba9f014
+-- hash: 2594ab1087d7599621fb9177a2bff05db06ccf59ca9a2453119215c4fea39e4c
 
 name:           vinci-lang
 version:        0.1.0.0
@@ -30,17 +30,18 @@ library
       Core.Interpreter
       Core.LambdaLifting
       Core.Ops
+      Core.TypeChecking
       Core.Utils
       CPS.AST
       CPS.CoreToCPS
       Frontend.AST
       Frontend.TranspileAST
+      LibraryList
       Parser.AbsVinci
       Parser.ErrM
       Parser.LexVinci
       Parser.ParVinci
       Parser.PrintVinci
-      SPIRV.LibraryList
       SPIRV.SpirOps
       SPIRV.SSAtoSPIR
       SPIRV.Types
@@ -93,6 +94,7 @@ test-suite vinci-lang-test
       CoreToCPSTest
       InterpreterTests.CoreTest
       InterpreterTests.SSATest
+      LambdaLiftingTest
       ParserTests
       TranspileToSSATest
       Paths_vinci_lang
