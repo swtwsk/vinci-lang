@@ -8,6 +8,7 @@ import Data.Bifunctor
 import Data.Maybe (fromMaybe)
 
 import qualified CPS.AST as CPS
+import ManglingPrefixes (cpsToSsaVarPrefix)
 import SSA.AST
 import SPIRV.Types
 import Utils.DList (output)
@@ -146,9 +147,11 @@ nextVar = do
 
 -- State
 emptyState :: StateEnv
-emptyState = StateEnv { _untranspiledJumps = []
-                      , _phiValues = Map.empty
-                      , _varSupply = ["$_x_" ++ show x | x <- [(0 :: Int) ..]] }
+emptyState = 
+    StateEnv { _untranspiledJumps = []
+             , _phiValues = Map.empty
+             , _varSupply = [cpsToSsaVarPrefix ++ show x | x <- [(0 :: Int) ..]] 
+             }
 
 updatePhi :: Label -> [(Label, String)] -> PhiMap -> PhiMap
 updatePhi destLabel phiVars phiMap =

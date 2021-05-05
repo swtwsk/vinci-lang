@@ -1,35 +1,47 @@
-module Core.LambdaLifting (lambdaLiftProg) where
+module Core.LambdaLifting (
+    lambdaLiftProgs
+) where
 -- based on Johnson's lifting algorithm (O(n^3))
 -- from "Lambda-Lifting in Quadratic Time"
 
+import Control.Monad.Identity (Identity (..))
 import Control.Monad.Reader
 import Data.Bifunctor (bimap, second)
 import Data.Functor ((<&>))
-import Data.Maybe (fromJust)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import Core.AST
+import Core.FreeVariables (freeVariablesExpr)
 import Core.Utils (aggregateApplications)
+import LibraryList (coreLibraryList)
 
 type FunName = String
-type LiftMap = Map.Map FunName [VarId Maybe]
+type LiftMap = Map.Map FunName [VarId Identity]
+data LiftEnv = LiftEnv { _globals :: Set.Set (VarId Identity)
+                       , _lifts   :: LiftMap }
+type LiftM = Reader LiftEnv
 
-type LiftM = Reader LiftMap
-
-lambdaLiftProg :: Prog Maybe -> [Prog Maybe]
-lambdaLiftProg = Set.toList . blockFloatDef . parameterLiftProg
+lambdaLiftProgs :: [Prog Identity] -> [Prog Identity]
+lambdaLiftProgs progs = progs >>= lambdaLiftProg'
+    where
+        libraryGlobals = Set.fromList $ (`Var'` TDummy) . fst <$> Map.toList coreLibraryList
+        progGlobals = Set.fromList $ (\(Prog f _ _) -> f) <$> progs
+        globals = Set.union libraryGlobals progGlobals
+        lambdaLiftProg' = Set.toList . blockFloatDef . parameterLiftProg globals
 
 -- parameter lifting
-parameterLiftProg :: Prog Maybe -> Prog Maybe
-parameterLiftProg p = runReader (parameterLiftDef p) Map.empty
+parameterLiftProg :: Set.Set (VarId Identity) -> Prog Identity -> Prog Identity
+parameterLiftProg globals prog = runReader (parameterLiftDef prog) env
+    where
+        env = LiftEnv { _globals = globals, _lifts = Map.empty }
 
-parameterLiftDef :: Prog Maybe -> LiftM (Prog Maybe)
+parameterLiftDef :: Prog Identity -> LiftM (Prog Identity)
 parameterLiftDef (Prog fName args e) = do
     e' <- parameterLiftExpr e
     applySolutionToDef (Prog fName args e')
 
-parameterLiftExpr :: Expr Maybe -> LiftM (Expr Maybe)
+parameterLiftExpr :: Expr Identity -> LiftM (Expr Identity)
 parameterLiftExpr v@(Var _) = applySolutionToExpr v
 parameterLiftExpr l@(Lit _) = return l
 parameterLiftExpr e@App {} = do
@@ -49,16 +61,16 @@ parameterLiftExpr (Let n e1 e2) = do
     e2' <- parameterLiftExpr e2
     return $ Let n e1' e2'
 parameterLiftExpr (LetFun p@(Prog f@(VarId n _) args e1) e2) = do
-    lifts <- ask
-    let fv  = runReader (freeVariables e1) (Set.fromList (f:args))
+    LiftEnv globals lifts <- ask
+    let fv  = freeVariablesExpr e1 (Set.union (Set.fromList (f:args)) globals)
         fv' = Set.toList fv
         -- we can use dummyType because Eq looks just on name of the VarId
         mergeFun acc g gVars = 
-            if Set.member (VarId g $ Just TDummy) fv then acc ++ gVars else acc
+            if Set.member (Var' g TDummy) fv then acc ++ gVars else acc
         fv''   = Map.foldlWithKey mergeFun fv' lifts
         lifts' = Map.insert n fv'' lifts
-    p'  <- local (const lifts') (parameterLiftDef p)
-    e2' <- local (const lifts') (parameterLiftExpr e2)
+    p'  <- local (\r -> r { _lifts = lifts' }) (parameterLiftDef p)
+    e2' <- local (\r -> r { _lifts = lifts' }) (parameterLiftExpr e2)
     return $ LetFun p' e2'
 parameterLiftExpr (BinOp op e1 e2) = do
     e1' <- parameterLiftExpr e1
@@ -66,69 +78,36 @@ parameterLiftExpr (BinOp op e1 e2) = do
     return $ BinOp op e1' e2'
 parameterLiftExpr (UnOp op e) = UnOp op <$> parameterLiftExpr e
 
-applySolutionToDef :: Prog Maybe -> LiftM (Prog Maybe)
+applySolutionToDef :: Prog Identity -> LiftM (Prog Identity)
 applySolutionToDef p@(Prog f@(VarId fName _t) args e) = 
-    ask <&> \m -> case Map.lookup fName m of
+    ask <&> \(LiftEnv _ m) -> case Map.lookup fName m of
         Just varList -> 
             let t' = getLiftedFunType f varList in
-            Prog (VarId fName t') (varList ++ args) e
+            Prog (Var' fName t') (varList ++ args) e
         Nothing -> p
 
-applySolutionToExpr :: Expr Maybe -> LiftM (Expr Maybe)
+applySolutionToExpr :: Expr Identity -> LiftM (Expr Identity)
 applySolutionToExpr e@(Var f@(VarId fName _t)) = 
-    ask <&> \m -> case Map.lookup fName m of
+    ask <&> \(LiftEnv _ m) -> case Map.lookup fName m of
         Just varList -> 
             let t' = getLiftedFunType f varList in
-            appFunVars (VarId fName t') varList
+            appFunVars (Var' fName t') varList
         Nothing -> e
 applySolutionToExpr e = return e
 
-appFunVars :: VarId Maybe -> [VarId Maybe] -> Expr Maybe
+appFunVars :: VarId Identity -> [VarId Identity] -> Expr Identity
 appFunVars f = foldl (\acc el -> App acc (Var el)) (Var f)
 
-getLiftedFunType :: VarId Maybe -> [VarId Maybe] -> Maybe Type
-getLiftedFunType (VarId _f (Just t)) args = Just $ foldr TFun t (fromJust . _varType <$> args)
-getLiftedFunType _ _ = Nothing
-
-freeVariables :: Expr Maybe 
-    -> Reader (Set.Set (VarId Maybe)) (Set.Set (VarId Maybe))
-freeVariables (Var v) = ask <&> \s -> if Set.member v s 
-    then Set.empty 
-    else Set.singleton v
-freeVariables (Lit _) = return Set.empty
-freeVariables (App e1 e2) = do
-    fv1 <- freeVariables e1
-    fv2 <- freeVariables e2
-    return $ fv1 `Set.union` fv2
-freeVariables (If c e1 e2) = do
-    fvc <- freeVariables c
-    fv1 <- freeVariables e1
-    fv2 <- freeVariables e2
-    return $ fvc `Set.union` fv1 `Set.union` fv2
-freeVariables (TupleCons exprs) = do
-    fvs <- mapM freeVariables exprs
-    return $ foldl1 Set.union fvs
-freeVariables (TupleProj _i e) = freeVariables e
-freeVariables (Let n e1 e2) = do
-    fv1 <- freeVariables e1
-    fv2 <- local (Set.insert n) (freeVariables e2)
-    return $ fv1 `Set.union` fv2
-freeVariables (LetFun (Prog f args e1) e2) = do
-    fv1 <- local (Set.union (Set.fromList args) . Set.insert f) (freeVariables e1)
-    fv2 <- local (Set.insert f) (freeVariables e2)
-    return $ fv1 `Set.union` fv2
-freeVariables (BinOp _ e1 e2) = do
-    fv1 <- freeVariables e1
-    fv2 <- freeVariables e2
-    return $ fv1 `Set.union` fv2
-freeVariables (UnOp _ e) = freeVariables e
+getLiftedFunType :: VarId Identity -> [VarId Identity] -> Type
+getLiftedFunType (VarId _f (Identity t)) args = 
+    foldr TFun t ((\(Identity t') -> t') . _varType <$> args)
 
 -- block floating
-blockFloatDef :: Prog Maybe -> Set.Set (Prog Maybe)
+blockFloatDef :: Prog Identity -> Set.Set (Prog Identity)
 blockFloatDef (Prog fName args e) = Set.insert (Prog fName args e') fs
     where (fs, e') = blockFloatExpr e
 
-blockFloatExpr :: Expr Maybe -> (Set.Set (Prog Maybe), Expr Maybe)
+blockFloatExpr :: Expr Identity -> (Set.Set (Prog Identity), Expr Identity)
 blockFloatExpr v@(Var _) = (Set.empty, v)
 blockFloatExpr l@(Lit _) = (Set.empty, l)
 blockFloatExpr (App e1 e2) = (s1 `Set.union` s2, App e1' e2')
@@ -143,7 +122,7 @@ blockFloatExpr (If c e1 e2) = (sc `Set.union` s1 `Set.union` s2, If c' e1' e2')
 blockFloatExpr (TupleCons exprs) = (s', TupleCons exprs')
     where
         (s', exprs') = extractProgs $ map blockFloatExpr exprs
-        extractProgs :: [(Set.Set (Prog Maybe), Expr Maybe)] -> (Set.Set (Prog Maybe), [Expr Maybe])
+        extractProgs :: [(Set.Set (Prog Identity), Expr Identity)] -> (Set.Set (Prog Identity), [Expr Identity])
         extractProgs ((s, expr):t) = 
             bimap (s `Set.union`) (expr:) $ extractProgs t
         extractProgs [] = (Set.empty, [])

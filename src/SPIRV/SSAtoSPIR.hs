@@ -9,6 +9,7 @@ import qualified Data.Map as Map
 
 import Core.Ops
 import LibraryList (spirLibraryList)
+import ManglingPrefixes (ssaToSpirLabelPrefix)
 import SSA.AST
 import SPIRV.SpirOps
 import SPIRV.Types
@@ -62,12 +63,12 @@ fnDefToSpir (SFnDef fName rt fArgs block labelled) = do
     renamedArgs <- forM fArgs $ \(SArg (Var arg _)) -> 
                         (arg, ) <$> buildVar ((arg ++ "_")++)
     argTypes <- zipWithM processArgs renamedArgs ats
-    renamedLabels <- mapM (\(SLabelled (SLabel l) _ _) -> ('@':l, ) <$> nextVar) labelled
+    renamedLabels <- mapM (\(SLabelled (SLabel l) _ _) -> (toLabel l, ) <$> nextVar) labelled
     let renameMap = Map.fromList (renamedArgs ++ renamedLabels)
 
     label <- nextVar
     output $ OpLabel (SpirId label)
-    let renameMap' = Map.insert ('@':fName ++ "_init") label renameMap
+    let renameMap' = Map.insert (toLabel $ fName ++ "_init") label renameMap
     modify $ \st -> st { _renames  = renameMap'
                        , _argTypes = Map.fromList argTypes }
 
@@ -213,7 +214,10 @@ getRenamedVar var = do
         return var'
 
 getRenamedLabel :: SLabel -> SpirM String
-getRenamedLabel (SLabel l) = getRenamedVar ('@':l)
+getRenamedLabel (SLabel l) = getRenamedVar (toLabel l)
+
+toLabel :: String -> String
+toLabel = (ssaToSpirLabelPrefix ++)
 
 -- WALKAROUND: Apparently State, Writer and Data.Map get confused when it comes
 -- to sequencing operations.

@@ -9,7 +9,7 @@ import Parser.ParVinci ( pProgram, myLexer )
 
 import qualified Core.AST as Core (Prog)
 import Core.FrontendToCore (frontendProgramToCore)
-import Core.LambdaLifting (lambdaLiftProg)
+import Core.LambdaLifting (lambdaLiftProgs)
 import Core.TypeChecking (tcProgs)
 import CPS.CoreToCPS (coreToCPS)
 import qualified Frontend.AST as F
@@ -41,8 +41,8 @@ usage = do
         , "  (files)         Compile content of files into SPIRV."
         , "  -f (files)      Compile content of files into Vinci frontend."
         , "  -c (files)      Compile content of files into Core."
-        , "  -l (files)      Compile content of files into Core after Lambda Lifting."
         , "  -t (files)      Compile content of files into Core after typechecking."
+        , "  -l (files)      Compile content of files into Core after Lambda Lifting."
         , "  -k (files)      Compile content of files into CPS."
         , "  -s (files)      Compile content of files into SSA."
         ]
@@ -53,22 +53,24 @@ data OutputType = Frontend | Core | LiftedCore | TCCore | CPS | SSA | SPIRV | Fu
 compilationFunction :: OutputType -> (F.Program -> String)
 compilationFunction outputType = case outputType of
     Frontend   -> show
-    Core       -> show . frontendProgramToCore
-    LiftedCore -> \x -> unlines $ show <$> (lambdaLiftProg =<< frontendProgramToCore x)
-    rest       -> \x -> typeCheckAndCompile rest (lambdaLiftProg =<< frontendProgramToCore x)
+    Core       -> show <$> frontendProgramToCore
+    rest       -> typeCheckAndCompile rest . frontendProgramToCore
+    -- LiftedCore -> \x -> unlines $ show <$> (lambdaLiftProg =<< frontendProgramToCore x)
+    -- rest       -> \x -> typeCheckAndCompile rest (lambdaLiftProg =<< frontendProgramToCore x)
 
 typeCheckAndCompile :: OutputType -> [Core.Prog Maybe] -> String
 typeCheckAndCompile outputType progs = case tcProgs progs of
     Left err -> err
     Right typeChecked -> case outputType of
         TCCore     -> unlines $ show <$> typeChecked
-        CPS        -> unlines $ show . coreToCPS <$> typeChecked
-        SSA        -> unlines $ show . cpsToSSA . coreToCPS <$> typeChecked
+        LiftedCore -> unlines $ show <$> lambdaLiftProgs typeChecked
+        CPS        -> unlines $ show . coreToCPS <$> lambdaLiftProgs typeChecked
+        SSA        -> unlines $ show . cpsToSSA . coreToCPS <$> lambdaLiftProgs typeChecked
         SPIRV      -> unlines . fmap show . uncurry (++) . ssaToSpir $ 
             cpsToSSA . coreToCPS <$> typeChecked
         FullSPIRV  ->
             let (constsTypes, fnOps) = ssaToSpir $ 
-                    cpsToSSA . coreToCPS <$> typeChecked in
+                    cpsToSSA . coreToCPS <$> lambdaLiftProgs typeChecked in
             compileToDemoSpir constsTypes fnOps
         _ -> "Error?"
 

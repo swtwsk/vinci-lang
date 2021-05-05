@@ -11,6 +11,7 @@ import qualified Core.AST as Core
 import Core.Ops
 import Core.Utils (aggregateApplications)
 import qualified CPS.AST as CPS
+import ManglingPrefixes (coreToCPSContPrefix, coreToCPSVarPrefix)
 
 type TranslateM = VarSupply (String, String)
 type CCont = CPS.Var -> TranslateM CPS.CExpr
@@ -18,7 +19,8 @@ type CCont = CPS.Var -> TranslateM CPS.CExpr
 coreToCPS :: Core.Prog Identity -> CPS.CFunDef
 coreToCPS prog = evalVarSupply (coreToCPS' prog) supp
     where
-        supp = [("_k" ++ show x, "_x" ++ show x) | x <- [(0 :: Int) ..]]
+        supp = [(coreToCPSContPrefix ++ show x, coreToCPSVarPrefix ++ show x) 
+                                                        | x <- [(0 :: Int) ..]]
 
 coreToCPS' :: Core.Prog Identity -> TranslateM CPS.CFunDef
 coreToCPS' (Core.Prog progName args expr) = do
@@ -109,7 +111,6 @@ coreExprToCPS (Core.BinOp op e1 e2) k = do
     let k2 z1 z2 = return $ CPS.CLetPrim resVar (CPS.CBinOp op) [z1, z2] kApplied
     let k1 z1 = coreExprToCPS e2 $ k2 z1
     coreExprToCPS e1 k1
--- coreExprToCPS _ _ = undefined
 
 coreExprToCPSWithCont :: Core.Expr Identity -> CPS.CVar -> TranslateM CPS.CExpr
 coreExprToCPSWithCont (Core.Var (Core.VarId x t)) k = do
