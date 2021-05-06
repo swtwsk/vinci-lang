@@ -7,6 +7,7 @@ import qualified LambdaLiftingTest
 import qualified TranspileToSSATest
 import qualified InterpreterTests.CoreTest as CoreInterpreterTest
 import qualified InterpreterTests.SSATest as SSAInterpreterTest
+import qualified OptimizationTests.PostOrderTest as PostOrderTest
 
 main :: IO ()
 main = defaultMain tests
@@ -18,7 +19,8 @@ tests = testGroup "Tests"
     , ParserTests.tests
     , CoreToCPSTest.tests
     , TranspileToSSATest.tests
-    , LambdaLiftingTest.tests ]
+    , LambdaLiftingTest.tests
+    , PostOrderTest.tests ]
 
 interpretersTests :: TestTree
 interpretersTests = testGroup "Interpreters" [ CoreInterpreterTest.tests

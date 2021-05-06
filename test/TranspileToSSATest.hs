@@ -10,7 +10,7 @@ import qualified Data.Map as Map
 import qualified Core.AST as Core
 import Core.Interpreter (eval, evalExprEnv)
 import qualified Core.Interpreter as CoreInt
-import Core.LambdaLifting (lambdaLiftProg)
+import Core.LambdaLifting (lambdaLiftProgs)
 import Core.Ops as Ops (BinOp(..))
 import Core.TypeChecking (tcProgs)
 -- import qualified CPS.AST as CPS
@@ -24,16 +24,16 @@ tests = testGroup "Transpile to SSA tests" [ coreToSSATest ]
 
 coreToSSATest :: TestTree
 coreToSSATest = testGroup "Core to SSA"
-    [ testCase "Recursion g" $ liftAndTypecheck gCore >>= \x -> assertValueEq (runProc gCore (Core.App (Core.Var (Core.VarId "f" Nothing)) (Core.Lit $ Core.LFloat 7.0))) (SSAInt.run (cpsToSSA . coreToCPS <$> x) "f" [7.0] )
-    , QC.testProperty "Recursion g - f(x) == f_ssa(x)" $ \(QC.Positive x) -> valueEq (runProc gCore (Core.App (Core.Var (Core.VarId "f" Nothing)) (Core.Lit $ Core.LFloat x))) (SSAInt.run (cpsToSSA . coreToCPS <$> liftAndTypecheckQC gCore) "f" [x])
-    , QC.testProperty "Recursion fib – fib(x) == fib_ssa(x)" $ \(QC.Positive x) -> valueEq (runProc fibCore (Core.App (Core.Var (Core.VarId "fib" Nothing)) (Core.Lit $ Core.LFloat (fromInteger x)))) (SSAInt.run (cpsToSSA . coreToCPS <$> liftAndTypecheckQC fibCore) "fib" [fromInteger x]) ]
+    [ testCase "Recursion g" $ liftAndTypecheck [gCore] >>= \x -> assertValueEq (runProc gCore (Core.App (Core.Var (Core.VarId "f" Nothing)) (Core.Lit $ Core.LFloat 7.0))) (SSAInt.run (cpsToSSA . coreToCPS <$> x) "f" [7.0] )
+    , QC.testProperty "Recursion g - f(x) == f_ssa(x)" $ \(QC.Positive x) -> valueEq (runProc gCore (Core.App (Core.Var (Core.VarId "f" Nothing)) (Core.Lit $ Core.LFloat x))) (SSAInt.run (cpsToSSA . coreToCPS <$> liftAndTypecheckQC [gCore]) "f" [x])
+    , QC.testProperty "Recursion fib – fib(x) == fib_ssa(x)" $ \(QC.Positive x) -> valueEq (runProc fibCore (Core.App (Core.Var (Core.VarId "fib" Nothing)) (Core.Lit $ Core.LFloat (fromInteger x)))) (SSAInt.run (cpsToSSA . coreToCPS <$> liftAndTypecheckQC [fibCore]) "fib" [fromInteger x]) ]
     where
-        liftAndTypecheck core = case tcProgs (lambdaLiftProg core) of
+        liftAndTypecheck core = case tcProgs core of
             Left err -> assertFailure err
-            Right progs -> return progs
-        liftAndTypecheckQC core = case tcProgs (lambdaLiftProg core) of
+            Right progs -> return (lambdaLiftProgs progs)
+        liftAndTypecheckQC core = case tcProgs core of
             Left _ -> undefined
-            Right progs -> progs
+            Right progs -> lambdaLiftProgs progs
         floatId var = Core.VarId var (Just Core.TFloat)
         gType = Core.TFun Core.TFloat Core.TFloat
         helpType = Core.TFun Core.TFloat (Core.TFun Core.TFloat (Core.TFun Core.TFloat Core.TFloat))
