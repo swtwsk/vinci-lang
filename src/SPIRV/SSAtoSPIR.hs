@@ -28,15 +28,38 @@ type SpirList = DList SpirOp
 type SpirM = RWS ReaderEnv SpirList StateEnv
 
 ssaToSpir :: [SFnDef] -> ([SpirOp], [SpirOp])
-ssaToSpir fnDefs = (typeIds ++ consts, fnOps')
+ssaToSpir fnDefs = (typeIds ++ consts, fnOps'')
     where
         (typeIds, fnOps) = ssaToSpir' fnDefs
         (consts, fnOps') = extractConst fnOps
+        fnOps''          = hoistVariables fnOps'
 
         extractConst :: [SpirOp] -> ([SpirOp], [SpirOp])
         extractConst (c@OpConstant {}:t) = first (c:) $ extractConst t
         extractConst (h:t) = second (h:) $ extractConst t
         extractConst [] = ([], [])
+
+hoistVariables :: [SpirOp] -> [SpirOp]
+hoistVariables = concat . (uncurry hoistVariables' . extractVariables <$>) 
+                        . (fst . splitToFns)
+    where
+        hoistVariables' :: [SpirOp] -> [SpirOp] -> [SpirOp]
+        hoistVariables' vars (l@(OpLabel _):t) = l:vars ++ t
+        hoistVariables' vars (h:t) = h:hoistVariables' vars t
+        hoistVariables' _ [] = []
+
+        extractVariables :: [SpirOp] -> ([SpirOp], [SpirOp])
+        extractVariables (v@OpVariable {}:t) = first (v:) $ extractVariables t
+        extractVariables (h:t) = second (h:) $ extractVariables t
+        extractVariables [] = ([], [])
+
+        splitToFns :: [SpirOp] -> ([[SpirOp]], [SpirOp])
+        splitToFns (f@OpFunction {}:t) =
+            let (fns, currFn) = splitToFns t in ((f:currFn):fns, [])
+        splitToFns (OpFunctionEnd:t) =
+            let (fns, _currFn) = splitToFns t in (fns, [OpFunctionEnd])
+        splitToFns (h:t) = second (h:) $ splitToFns t
+        splitToFns [] = ([], [])
 
 ssaToSpir' :: [SFnDef] -> ([SpirOp], [SpirOp])
 ssaToSpir' fnDefs = (typesToOps $ _typeIds finalSt, toList ops)
