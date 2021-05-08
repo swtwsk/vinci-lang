@@ -15,6 +15,7 @@ shaderPrologue =
     , "; Bound: 59"
     , "; Schema: 0"
     , "               OpCapability Shader"
+    , "               OpCapability VariablePointers"
     , "          %1 = OpExtInstImport \"GLSL.std.450\""
     , "               OpMemoryModel Logical GLSL450"
     , "               OpEntryPoint Fragment %main \"main\" %fragColor %outColor"

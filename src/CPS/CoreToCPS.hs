@@ -65,7 +65,7 @@ coreExprToCPS (Core.TupleCons exprs) k =
     coreTupleTranslation exprs [] k
 coreExprToCPS (Core.TupleProj i e) k = do
     (_, x) <- nextVar
-    coreExprToCPS e $ \z@(CPS.Var _ t) -> do
+    coreExprToCPS e $ \z@(CPS.Var _ (CPS.CTTuple t _)) -> do
         let x' = CPS.Var x t
         kApplied <- k x'
         return $ CPS.CLetProj x' i z kApplied
@@ -138,7 +138,7 @@ coreExprToCPSWithCont (Core.TupleCons exprs) k =
     coreTupleTranslation exprs [] (return . CPS.CAppCont k)
 coreExprToCPSWithCont (Core.TupleProj i e) k = do
     (_, x) <- nextVar
-    coreExprToCPS e $ \z@(CPS.Var _ t) -> do
+    coreExprToCPS e $ \z@(CPS.Var _ (CPS.CTTuple t _)) -> do
         let x' = CPS.Var x t
         return $ CPS.CLetProj x' i z $ CPS.CAppCont k x'
 coreExprToCPSWithCont (Core.Lit l) k = do

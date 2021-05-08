@@ -184,12 +184,13 @@ exprToSpir (STupleProj i (Var tuple t)) = do
     uintType <- getTypeId TUnsignedInt
     tuple' <- SpirId <$> getRenamedVar tuple
     let (TVector t' _) = t
+    ptrVarType <- getTypeId (TPointer StorFunction t')
     varType <- getTypeId t'
 
     output $ OpConstant iVar uintType (SCUnsigned i)
-    output $ OpAccessChain resVar varType tuple' iVar
+    output $ OpAccessChain resVar ptrVarType tuple' iVar
     output $ OpLoad tmp varType resVar
-    return resVar
+    return tmp
 exprToSpir (SBinOp op e1 e2) = do
     t1 <- exprToSpir e1
     t2 <- exprToSpir e2
@@ -204,8 +205,8 @@ exprToSpir (SBinOp op e1 e2) = do
         OpMod -> OpFMod v floatType t1 t2
         OpAnd -> OpLogicalAnd v boolType t1 t2
         OpOr -> OpLogicalOr v boolType t1 t2
-        OpEq -> OpFOrdEqual v floatType t1 t2
-        OpLT -> OpFOrdLessThan v floatType t1 t2
+        OpEq -> OpFOrdEqual v boolType t1 t2
+        OpLT -> OpFOrdLessThan v boolType t1 t2
     return v
 exprToSpir (SUnOp op e) = do
     te <- exprToSpir e

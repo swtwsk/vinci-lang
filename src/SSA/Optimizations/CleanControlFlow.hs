@@ -75,6 +75,7 @@ jumpElimination label target = do
 
 emptyElimination :: SLabel -> SLabel -> CleanM ()
 emptyElimination label target = do
+    edges <- gets fst
     let edgesFn = Map.map $ \case
             b@(BranchEdge l1 l2) -> 
                 if l1 == label then BranchEdge target l2 else
@@ -84,7 +85,12 @@ emptyElimination label target = do
             NoEdge -> NoEdge
         blocksMapFn = Map.map $ \(SLabelled l phis (SBlock b)) ->
             SLabelled l phis (SBlock $ changeLast b)
-    modify $ bimap (Map.delete label . edgesFn) (Map.delete label . blocksMapFn)
+        labelPrecedessors = getPrecedessors edges label
+        blocksMapFn' = flip Map.adjust target $ \(SLabelled l phis b) ->
+            let phisFns = map (changePhi label) labelPrecedessors
+                phis' = map (flip (foldr id) phisFns) phis in
+            SLabelled l phis' b
+    modify $ bimap (Map.delete label . edgesFn) (Map.delete label . blocksMapFn' . blocksMapFn)
     where
         changeLast :: [SStmt] -> [SStmt]
         changeLast [SGoto t] = [if t == label then SGoto target else SGoto t]
@@ -101,10 +107,12 @@ mergeBlocks label target = do
     let targetEdge = edges Map.! target
         edgesFn = Map.delete target . Map.insert label targetEdge
         (SLabelled _ lPhis (SBlock lBlock)) = blocksMap Map.! label
-        (SLabelled _ _ (SBlock tBlock)) = blocksMap Map.! target
-        block' = SLabelled label lPhis $ SBlock (merge lBlock tBlock)
-        blockMapFn = Map.delete target . Map.insert label block'
-    modify $ bimap edgesFn blockMapFn
+        (SLabelled _ tPhis (SBlock tBlock)) = blocksMap Map.! target
+        block' = SLabelled label (lPhis ++ tPhis) $ SBlock (merge lBlock tBlock)
+        fixPhisFn = Map.map $ \(SLabelled l phis b) ->
+            SLabelled l (changePhi target label <$> phis) b
+        blocksMapFn = fixPhisFn . Map.delete target . Map.insert label block'
+    modify $ bimap edgesFn blocksMapFn
     where
         merge :: [SStmt] -> [SStmt] -> [SStmt]
         merge [SGoto _] stmts2 = stmts2
@@ -116,11 +124,14 @@ hoistBlocks label target = do
     (edges, blocksMap) <- get
     let targetEdge = edges Map.! target
         edgesFn = Map.insert label targetEdge
-        (SLabelled _ phis (SBlock block)) = blocksMap Map.! label
-        (SLabelled _ _ (SBlock tBlock)) = blocksMap Map.! target
+        (SLabelled _ lPhis (SBlock block)) = blocksMap Map.! label
+        (SLabelled _ tPhis (SBlock tBlock)) = blocksMap Map.! target
         block' = changeLast block tBlock
-        blocksFn = Map.insert label (SLabelled label phis (SBlock block'))
-    modify $ bimap edgesFn blocksFn
+        fixPhisFn = Map.map $ \(SLabelled l phis b) ->
+            SLabelled l (changePhi target label <$> phis) b
+        blocksMapFn = 
+            Map.insert label (SLabelled label (lPhis ++ tPhis) (SBlock block'))
+    modify $ bimap edgesFn (fixPhisFn . blocksMapFn)
     where
         changeLast :: [SStmt] -> [SStmt] -> [SStmt]
         changeLast [_] tJump = tJump
@@ -128,13 +139,22 @@ hoistBlocks label target = do
         changeLast [] _ = []
 
 countPrecedessors :: Edges -> SLabel -> Int
-countPrecedessors edges label =
-    let foldFn acc = \case
+countPrecedessors edges label = length $ getPrecedessors edges label
+
+getPrecedessors :: Edges -> SLabel -> [SLabel]
+getPrecedessors edges label =
+    let foldFn source edge acc = case edge of
             BranchEdge l1 l2 -> 
-                if (l1 == label) || (l2 == label) then acc + 1 else acc
-            JumpEdge t -> if t == label then acc + 1 else acc
+                if (l1 == label) || (l2 == label) then source:acc else acc
+            JumpEdge t -> if t == label then source:acc else acc
             NoEdge -> acc
-    in Map.foldl foldFn 0 edges
+    in Map.foldrWithKey foldFn [] edges
+
+changePhi :: SLabel -> SLabel -> SPhiNode -> SPhiNode
+changePhi orig new (SPhiNode v blockVars) = SPhiNode v (changePhi' <$> blockVars)
+    where
+        changePhi' :: (SLabel, String) -> (SLabel, String)
+        changePhi' = first (\l -> if l == orig then new else l)
 
 -- Post Order
 postOrder :: Edges -> [SLabel]

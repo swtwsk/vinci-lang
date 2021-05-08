@@ -1,5 +1,6 @@
 module SSA.AST where
 
+import Data.Bifunctor (first)
 import Data.List (intercalate, sort)
 
 import Core.Ops
@@ -59,19 +60,21 @@ instance Show SBlock where
     show (SBlock stmts) = intercalate "\n" $ (\x -> "    " ++ show x) <$> stmts
 
 instance Show SLabelledBlock where
-    show (SLabelled l phiNodes block) = " " ++ show l ++ ": " ++ 
-        unlines (show <$> phiNodes) ++ show block
+    show (SLabelled l phiNodes block) = "  " ++ show l ++ ":\n" ++ 
+        unlines ((\x -> "    " ++ show x) <$> phiNodes) ++ show block
 
 instance Show SPhiNode where
     show (SPhiNode v exprs) = 
-        show v ++ " <- Φ(" ++ intercalate "," (show <$> exprs) ++ ")"
+        show v ++ " <- Φ(" ++ intercalate "," (showTuple . first show <$> exprs) ++ ")"
+        where
+            showTuple (a, b) = "(" ++ a ++ ", " ++ b ++ ")"
 
 instance Show SStmt where
     show (SAssign v e) = show v ++ " <- " ++ show e ++ ";"
     show (SGoto l) = "goto " ++ show l ++ ";"
     show (SReturn e) = "return " ++ show e ++ ";"
     show (SIf cond b1 b2) = "if (" ++ show cond ++ ") { goto " ++ show b1 ++ 
-        "} else { goto " ++ show b2 ++ "}"
+        " } else { goto " ++ show b2 ++ " }"
 
 instance Show SLabel where
     show (SLabel l) = l
