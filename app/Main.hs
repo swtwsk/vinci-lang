@@ -70,7 +70,7 @@ typeCheckAndCompile outputType progs = case tcProgs progs of
             show . optimizeGraph . cpsToSSA . coreToCPS <$> 
                 lambdaLiftProgs typeChecked
         SPIRV      -> unlines . fmap show . uncurry (++) . ssaToSpir $ 
-            optimizeGraph . cpsToSSA . coreToCPS <$> typeChecked
+            optimizeGraph . cpsToSSA . coreToCPS <$> lambdaLiftProgs typeChecked
         FullSPIRV  ->
             let (constsTypes, fnOps) = ssaToSpir $ 
                     optimizeGraph . cpsToSSA . coreToCPS <$> 

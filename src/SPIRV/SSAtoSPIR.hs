@@ -139,10 +139,15 @@ exprToSpir (SApp (Var fName fType) args) = do
     retType <- getTypeId rt
     tmp <- SpirId <$> nextVar
     args' <- mapM getRenamedVar (_varName <$> args)
-    -- TODO: OpExtInst is looking up for "extension", should not be hardcoded
-    output $ case Map.lookup fName spirLibraryList of
-        Just fName' -> OpExtInst tmp retType (SpirId "1") fName' (SpirId <$> args')
-        Nothing     -> OpFunctionCall tmp retType (SpirId fName) (SpirId <$> args')
+    case Map.lookup fName spirLibraryList of
+        Just fName' -> do
+            argTmps <- replicateM (length args') nextVar
+            zipWithM_ (\arg tmp' -> output (OpLoad tmp' retType arg)) 
+                (SpirId <$> args') (SpirId <$> argTmps)
+            -- TODO: OpExtInst is looking up for "extension", should not be hardcoded
+            output $ OpExtInst tmp retType (SpirId "1") fName' (SpirId <$> argTmps)
+        Nothing     ->
+            output $ OpFunctionCall tmp retType (SpirId fName) (SpirId <$> args')
     return tmp
 exprToSpir (STupleCtr vars) = do
     loaded <- forM vars $ \var -> exprToSpir (SVar var)
