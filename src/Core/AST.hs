@@ -15,6 +15,9 @@ data VarId f = VarId { _varName :: VarName
 pattern Var' :: VarName -> Type -> VarId Identity
 pattern Var' { varN, varT } = VarId { _varName = varN, _varType = Identity varT }
 
+data Binding f = ProgBinding (Prog f) | ConstBinding (VarId f) (Expr f)
+               deriving (Eq, Ord)
+
 data Prog f = Prog (VarId f) [VarId f] (Expr f)
             deriving (Eq, Ord)
 
@@ -75,6 +78,10 @@ instance (ShowableFunctor f) => Show (VarId f) where
     show (VarId vName vType) = 
         let sType = showF vType in
         if null sType then vName else "(" ++ vName ++ " : " ++ sType ++ ")"
+
+instance (ShowableFunctor f) => Show (Binding f) where
+    show (ProgBinding prog) = show prog
+    show (ConstBinding var c) = show var ++ " = " ++ show c
 
 instance (ShowableFunctor f) => Show (Prog f) where
     show (Prog progName args expr) = 

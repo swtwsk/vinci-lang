@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 405a42c1bc1b2080509cbb3b58f6b8e4ed816ed03ff73c7b2997684888d3d836
+-- hash: 8454989e3e981018567e9633558171f81047546c85f18535d9238282145c6e4c
 
 name:           vinci-lang
 version:        0.1.0.0
@@ -26,6 +26,7 @@ source-repository head
 library
   exposed-modules:
       Core.AST
+      Core.ConstDropping
       Core.FreeVariables
       Core.FrontendToCore
       Core.Interpreter

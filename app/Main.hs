@@ -8,6 +8,7 @@ import Parser.LexVinci ( Token )
 import Parser.ParVinci ( pProgram, myLexer )
 
 import qualified Core.AST as Core (Prog)
+import Core.ConstDropping (dropConsts)
 import Core.FrontendToCore (frontendProgramToCore)
 import Core.LambdaLifting (lambdaLiftProgs)
 import Core.TypeChecking (tcProgs)
@@ -55,9 +56,7 @@ compilationFunction :: OutputType -> (F.Program -> String)
 compilationFunction outputType = case outputType of
     Frontend   -> show
     Core       -> show <$> frontendProgramToCore
-    rest       -> typeCheckAndCompile rest . frontendProgramToCore
-    -- LiftedCore -> \x -> unlines $ show <$> (lambdaLiftProg =<< frontendProgramToCore x)
-    -- rest       -> \x -> typeCheckAndCompile rest (lambdaLiftProg =<< frontendProgramToCore x)
+    rest       -> typeCheckAndCompile rest . dropConsts . frontendProgramToCore
 
 typeCheckAndCompile :: OutputType -> [Core.Prog Maybe] -> String
 typeCheckAndCompile outputType progs = case tcProgs progs of

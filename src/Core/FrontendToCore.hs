@@ -15,18 +15,18 @@ type SuppM = VarSupply String
 
 data ProgArg = ProgVar String (Maybe Type) | ProgTuple [ProgArg] (Maybe Type)
 
-frontendProgramToCore :: F.Program -> [Prog Maybe]
+frontendProgramToCore :: F.Program -> [Binding Maybe]
 frontendProgramToCore (F.Prog phrases) = 
-    inverselySortTopologically $ phrases >>= (flip evalVarSupply supp . phraseToCore)
+    inverselySortTopologically $ phrases >>= run
     where
+        run = flip evalVarSupply supp . phraseToCore
         supp = [frontendToCoreVarPrefix ++ show x | x <- [(0 :: Int) ..]]
 
--- it shouldn't be Prog
-phraseToCore :: F.Phrase -> SuppM [Prog Maybe]
+phraseToCore :: F.Phrase -> SuppM [Binding Maybe]
 phraseToCore (F.Value (F.Let binds)) = mapM bindToProg binds
 phraseToCore _ = undefined
 
-bindToProg :: F.LetBind -> SuppM (Prog Maybe)
+bindToProg :: F.LetBind -> SuppM (Binding Maybe)
 bindToProg (F.ProcBind name vis rType e) = do
     (vis'', e') <- extractLam e
     vis' <- mapM extractName vis
@@ -37,8 +37,14 @@ bindToProg (F.ProcBind name vis rType e) = do
             (Just tps, Just r) -> 
                 Just $ foldr TFun (typeToCore r) tps
             _ -> Nothing
-    return $ Prog (VarId name fType) args e'''
-bindToProg F.ConstBind {} = undefined
+    return . ProgBinding $ Prog (VarId name fType) args e'''
+bindToProg cb@F.ConstBind {} = do
+    let dummy = Var (VarId "" Nothing)
+    bind' <- letBindToCore cb dummy
+    case bind' of
+        Let v e _ -> return (ConstBinding v e)
+        LetFun prog _ -> return (ProgBinding prog)
+        _ -> undefined -- should throw Error
 
 exprToCore :: F.Expr -> SuppM (Expr Maybe)
 exprToCore (F.EId var) = return $ Var (VarId var Nothing)
