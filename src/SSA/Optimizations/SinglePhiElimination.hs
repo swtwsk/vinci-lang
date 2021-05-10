@@ -7,7 +7,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import SSA.AST
-import SSA.Optimizations.LabelGraph (BlocksMap)
+import SSA.LabelGraph (BlocksMap)
 
 type Visited = Set.Set SLabel
 type EliminationM = State BlocksMap
@@ -65,7 +65,7 @@ removePhiStmt (SGoto l) = do
         modify $ second (Map.insert l lb')
     return (SGoto l)
 removePhiStmt (SReturn e) = SReturn <$> removePhiExpr e
-removePhiStmt (SIf e l1 l2) = (\e' -> SIf e' l1 l2) <$> removePhiExpr e
+removePhiStmt (SIf sf e l1 l2) = (\e' -> SIf sf e' l1 l2) <$> removePhiExpr e
 
 removePhiExpr :: SExpr -> RemovePhiM SExpr
 removePhiExpr (SVar v) = SVar <$> getVarAfterRemove v

@@ -20,7 +20,7 @@ data SPhiNode = SPhiNode Var [(SLabel, String)] deriving Eq
 data SStmt = SAssign Var SExpr
            | SGoto SLabel
            | SReturn SExpr
-           | SIf SExpr SLabel SLabel
+           | SIf (Maybe SStructuredMerge) SExpr SLabel SLabel
            deriving Eq
 
 data SExpr = SVar Var
@@ -32,6 +32,10 @@ data SExpr = SVar Var
            | SLitFloat Double
            | SLitBool Bool
            deriving Eq
+
+data SStructuredMerge = SLoopMerge SLabel SLabel 
+                      | SSelectionMerge SLabel
+                      deriving Eq
 
 newtype SArg = SArg Var deriving Eq
 newtype SLabel = SLabel String deriving (Eq, Ord)
@@ -73,8 +77,12 @@ instance Show SStmt where
     show (SAssign v e) = show v ++ " <- " ++ show e ++ ";"
     show (SGoto l) = "goto " ++ show l ++ ";"
     show (SReturn e) = "return " ++ show e ++ ";"
-    show (SIf cond b1 b2) = "if (" ++ show cond ++ ") { goto " ++ show b1 ++ 
+    show (SIf scf cond b1 b2) = show scf ++ " -> if (" ++ show cond ++ ") { goto " ++ show b1 ++ 
         " } else { goto " ++ show b2 ++ " }"
+
+instance Show SStructuredMerge where
+    show (SLoopMerge l1 l2) = "merge " ++ show l1 ++ " " ++ show l2
+    show (SSelectionMerge l) = "select " ++ show l
 
 instance Show SLabel where
     show (SLabel l) = l

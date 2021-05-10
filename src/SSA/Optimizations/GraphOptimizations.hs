@@ -5,7 +5,7 @@ import qualified Data.Map as Map
 import SSA.AST (SBlock(..), SLabel(..), SLabelledBlock(..), SFnDef(..))
 import SSA.Optimizations.SinglePhiElimination (eliminateSinglePhi)
 import SSA.Optimizations.CleanControlFlow (cleanControlFlow, countPrecedessors)
-import SSA.Optimizations.LabelGraph (BlocksMap, blocksToGraph)
+import SSA.LabelGraph (BlocksMap, blocksToGraph)
 
 optimizeGraph :: SFnDef -> SFnDef
 optimizeGraph (SFnDef fName rType args block lbs) =

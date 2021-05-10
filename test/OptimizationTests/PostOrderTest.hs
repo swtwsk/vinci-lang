@@ -6,8 +6,7 @@ import Test.Tasty.HUnit
 import Data.Map as Map
 
 import SSA.AST
-import SSA.Optimizations.LabelGraph (Edge(..))
-import SSA.Optimizations.CleanControlFlow (postOrder)
+import SSA.LabelGraph (Edge(..), postOrder)
 
 tests :: TestTree
 tests = testGroup "Post order tests"

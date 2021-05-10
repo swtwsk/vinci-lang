@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: fc812a4b153802163d64e1347a556be98dccec8da23ee8fdb238b3f837f7fc25
+-- hash: 405a42c1bc1b2080509cbb3b58f6b8e4ed816ed03ff73c7b2997684888d3d836
 
 name:           vinci-lang
 version:        0.1.0.0
@@ -51,10 +51,11 @@ library
       SSA.AST
       SSA.CPStoSSA
       SSA.Interpreter
+      SSA.LabelGraph
       SSA.Optimizations.CleanControlFlow
       SSA.Optimizations.GraphOptimizations
-      SSA.Optimizations.LabelGraph
       SSA.Optimizations.SinglePhiElimination
+      SSA.OptimizeAndPrepare
       Utils.DList
       Utils.VarSupply
   other-modules:

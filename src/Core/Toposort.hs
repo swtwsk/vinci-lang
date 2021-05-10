@@ -15,11 +15,11 @@ data CoreGraph a = CoreGraph { _sorted         :: [Prog a]
 showGraph :: (ShowableFunctor f) => CoreGraph f -> String
 showGraph coreGraph = unlines (show <$> _sorted coreGraph)
 
-sortTopologically :: [Prog a] -> [Prog a]
-sortTopologically = _sorted . sortTopologicallyToGraph
+inverselySortTopologically :: [Prog a] -> [Prog a]
+inverselySortTopologically = _sorted . inverselySortTopologicallyToGraph
 
-sortTopologicallyToGraph :: [Prog a] -> CoreGraph a
-sortTopologicallyToGraph progList = 
+inverselySortTopologicallyToGraph :: [Prog a] -> CoreGraph a
+inverselySortTopologicallyToGraph progList = 
     CoreGraph { _sorted         = fstTriple . nodeFromVertex <$> sorted
               , _graph          = graph
               , _nodeFromVertex = nodeFromVertex

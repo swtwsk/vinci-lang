@@ -14,6 +14,8 @@ data SpirOp = OpFunction SpirId SpirId SpirFunctionControl SpirId
             | OpAccessChain SpirId SpirId SpirId SpirId
             | OpVariable SpirId SpirId SpirStorageClass
             | OpPhi SpirId SpirId [(SpirId, SpirId)]
+            | OpLoopMerge SpirId SpirId SpirLoopControl
+            | OpSelectionMerge SpirId SpirSelectionControl
             | OpReturn
             | OpReturnValue SpirId
             | OpFunctionEnd
@@ -51,6 +53,10 @@ data SpirFunctionControl = FCNone | FCInline | FCDontInline | FCPure | FCConst
 
 data SpirStorageClass = StorFunction deriving (Eq, Ord) -- and other
 
+data SpirLoopControl = LCNone | LCUnroll | LCDontUnroll deriving Eq -- and other
+
+data SpirSelectionControl = SelCtrNone | SelCtrFlatten | SelCtrDontFlatten deriving Eq
+
 -- SHOWS
 instance Show SpirId where
     show (SpirId sid) = '%':sid
@@ -78,6 +84,10 @@ instance Show SpirOp where
         let pairToList = \(a, b) -> [a, b]
             varLabels' = concat $ pairToList <$> varLabels in
         showOpWithResult res "OpPhi" (resultType:varLabels')
+    show (OpLoopMerge mb ct loopCtr) = 
+        "OpLoopMerge " ++ show mb ++ " " ++ show ct ++ " " ++ show loopCtr
+    show (OpSelectionMerge mb selCtr) =
+        "OpSelectionMerge " ++ show mb ++ " " ++ show selCtr
     show OpReturn = "OpReturn"
     show (OpReturnValue arg) = "OpReturnValue " ++ show arg
     show OpFunctionEnd = "OpFunctionEnd"
@@ -136,3 +146,13 @@ instance Show SpirConst where
 
 instance Show SpirStorageClass where
     show StorFunction = "Function"
+
+instance Show SpirLoopControl where
+    show LCNone = "None"
+    show LCUnroll = "Unroll"
+    show LCDontUnroll = "DontUnroll"
+
+instance Show SpirSelectionControl where
+    show SelCtrNone = "None"
+    show SelCtrFlatten = "Flatten"
+    show SelCtrDontFlatten = "DontFlatten"

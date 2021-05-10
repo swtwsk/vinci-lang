@@ -74,7 +74,7 @@ runStmt (SGoto l) = do
         err = "Cannot find block " ++ show l
     maybe (throwError err) (`runLabelled` currentLabel) labelled
 runStmt (SReturn e) = pure <$> runExpr e
-runStmt (SIf cond b1 b2) = do
+runStmt (SIf _ cond b1 b2) = do
     cond' <- runExpr cond
     case cond' of
         VBool True -> runStmt (SGoto b1)

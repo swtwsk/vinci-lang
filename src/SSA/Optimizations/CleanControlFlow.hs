@@ -7,19 +7,13 @@ module SSA.Optimizations.CleanControlFlow (
 ) where
 
 import Control.Monad.Reader
-import Control.Monad.RWS
 import Control.Monad.State
-import Data.Bifunctor (bimap, first, second)
-import Data.DList (DList, toList)
-import qualified Data.Set as Set
+import Data.Bifunctor (bimap, first)
 import qualified Data.Map as Map
 
 import SSA.AST
-import SSA.Optimizations.LabelGraph
-import Utils.DList (output)
+import SSA.LabelGraph
 
-type Visited = Set.Set SLabel
-type DFSM = RWS Edges (DList SLabel) (Visited, Int)
 type CleanM = State (Edges, BlocksMap)
 
 cleanControlFlow :: Edges -> BlocksMap -> (Edges, BlocksMap)
@@ -94,7 +88,7 @@ emptyElimination label target = do
     where
         changeLast :: [SStmt] -> [SStmt]
         changeLast [SGoto t] = [if t == label then SGoto target else SGoto t]
-        changeLast [SIf e l1 l2] = (: []) $ let sif = SIf e in
+        changeLast [SIf sf e l1 l2] = (: []) $ let sif = SIf sf e in
             if l1 == label then sif target l2 else
             if l2 == label then sif l1 label else
             sif l1 l2
@@ -155,25 +149,3 @@ changePhi orig new (SPhiNode v blockVars) = SPhiNode v (changePhi' <$> blockVars
     where
         changePhi' :: (SLabel, String) -> (SLabel, String)
         changePhi' = first (\l -> if l == orig then new else l)
-
--- Post Order
-postOrder :: Edges -> [SLabel]
-postOrder edges = toList postOrdered
-    where
-        (_, postOrdered) = execRWS (mapM_ postOrder' vertexList) edges initState
-        vertexList = fst <$> Map.toList edges
-        initState = (Set.empty, 0)
-
-postOrder' :: SLabel -> DFSM ()
-postOrder' l = do
-    visited <- gets fst
-    if Set.member l visited then return () else do
-        modify $ first (Set.insert l)
-        edge <- asks (Map.! l)
-        case edge of
-            NoEdge -> return ()
-            JumpEdge l' -> postOrder' l'
-            BranchEdge l1 l2 -> postOrder' l1 >> postOrder' l2
-        i <- gets snd
-        output l 
-        modify . second . const $ i + 1

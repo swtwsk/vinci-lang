@@ -20,7 +20,7 @@ type ReaderEnv = ()
 
 data StateEnv = StateEnv { _typeIds   :: TypeIdsMap
                          , _renames   :: Map.Map String String
-                         , _argTypes  :: Map.Map SpirId SpirType
+                         , _phiVars   :: Map.Map String SpirType
                          , _varSupply :: [String] }
 
 type TypeIdsMap = Map.Map SpirType SpirId
@@ -71,7 +71,7 @@ ssaToSpir' fnDefs = (typesToOps $ _typeIds finalSt, toList ops)
         initialStateEnv = StateEnv 
             { _typeIds = Map.empty
             , _renames = Map.empty
-            , _argTypes = Map.empty
+            , _phiVars = Map.empty
             , _varSupply = [show i | i <- [(61 :: Int)..]] }
         funs = flip fmap fnDefs $ \(SFnDef fName rt args _ _) -> 
                 (fName, TFun rt ((\(SArg (Var _ t)) -> TPointer StorFunction t) <$> args))
@@ -85,27 +85,25 @@ fnDefToSpir (SFnDef fName rt fArgs block labelled) = do
 
     renamedArgs <- forM fArgs $ \(SArg (Var arg _)) -> 
                         (arg, ) <$> buildVar ((arg ++ "_")++)
-    argTypes <- zipWithM processArgs renamedArgs ats
+    zipWithM_ processArgs renamedArgs ats
     renamedLabels <- mapM (\(SLabelled (SLabel l) _ _) -> (toLabel l, ) <$> nextVar) labelled
     let renameMap = Map.fromList (renamedArgs ++ renamedLabels)
 
     label <- nextVar
     output $ OpLabel (SpirId label)
     let renameMap' = Map.insert (toLabel $ fName ++ "_init") label renameMap
-    modify $ \st -> st { _renames  = renameMap'
-                       , _argTypes = Map.fromList argTypes }
+    modify $ \st -> st { _renames  = renameMap' }
 
     blockToSpir block
     forM_ labelled labelledToSpir
 
     output OpFunctionEnd
     where
-        processArgs :: (VarName, String) -> SpirType -> SpirM (SpirId, SpirType)
+        processArgs :: (VarName, String) -> SpirType -> SpirM ()
         processArgs (_, rArg) t = do
             typeId <- getTypeId t
             let argId = SpirId rArg
             output $ OpFunctionParameter argId typeId
-            return (argId, t)
 
 labelledToSpir :: SLabelledBlock -> SpirM ()
 labelledToSpir (SLabelled l phiNodes block) = do
@@ -116,6 +114,7 @@ labelledToSpir (SLabelled l phiNodes block) = do
         args' <- mapM getRenamed args
         varType <- getTypeId (TPointer StorFunction t)
         output $ OpPhi (SpirId var') varType args'
+        modify $ \st -> st { _phiVars = Map.insert var' t (_phiVars st) }
         return (var, var')
     let renameMap = Map.fromList renamedPhiVars
     modify $ \st -> st { _renames = Map.union renameMap (_renames st) }
@@ -144,11 +143,20 @@ stmtToSpir (SGoto l) = do
 stmtToSpir (SReturn expr) = do
     tmp <- exprToSpir expr
     output $ OpReturnValue tmp
-stmtToSpir (SIf expr l1 l2) = do
+stmtToSpir (SIf sm expr l1 l2) = do
     tmp <- exprToSpir expr
-    l1' <- getRenamedLabel l1
-    l2' <- getRenamedLabel l2
-    output $ OpBranchConditional tmp (SpirId l1') (SpirId l2')
+    l1' <- SpirId <$> getRenamedLabel l1
+    l2' <- SpirId <$> getRenamedLabel l2
+    output =<< case sm of
+        Just (SLoopMerge breakL contL) -> do
+            breakL' <- SpirId <$> getRenamedLabel breakL
+            contL'  <- SpirId <$> getRenamedLabel contL
+            return $ OpLoopMerge breakL' contL' LCNone
+        Just (SSelectionMerge l) -> do
+            l' <- SpirId <$> getRenamedLabel l
+            return $ OpSelectionMerge l' SelCtrNone
+        Nothing -> return $ OpSelectionMerge l2' SelCtrNone
+    output $ OpBranchConditional tmp l1' l2'
 
 exprToSpir :: SExpr -> SpirM SpirId
 exprToSpir (SVar (Var vName t)) = do
@@ -161,16 +169,29 @@ exprToSpir (SApp (Var fName fType) args) = do
     let (TFun rt _) = fType
     retType <- getTypeId rt
     tmp <- SpirId <$> nextVar
+    phiVars <- gets _phiVars
     args' <- mapM getRenamedVar (_varName <$> args)
+    args'' <- forM args' $ \arg -> case Map.lookup arg phiVars of
+        Just t' -> do
+            argTmp <- SpirId <$> nextVar
+            argType <- getTypeId t'
+            output $ OpLoad argTmp argType (SpirId arg)
+            varType <- getTypeId (TPointer StorFunction t')
+            varTmp <- SpirId <$> nextVar
+            output $ OpVariable varTmp varType StorFunction
+            output $ OpStore varTmp argTmp
+            return varTmp
+        Nothing -> return (SpirId arg)
+        -- tmp <- SpirId <$> nextVar
     case Map.lookup fName spirLibraryList of
         Just fName' -> do
-            argTmps <- replicateM (length args') nextVar
+            argTmps <- replicateM (length args'') nextVar
             zipWithM_ (\arg tmp' -> output (OpLoad tmp' retType arg)) 
-                (SpirId <$> args') (SpirId <$> argTmps)
+                args'' (SpirId <$> argTmps)
             -- TODO: OpExtInst is looking up for "extension", should not be hardcoded
             output $ OpExtInst tmp retType (SpirId "1") fName' (SpirId <$> argTmps)
         Nothing     ->
-            output $ OpFunctionCall tmp retType (SpirId fName) (SpirId <$> args')
+            output $ OpFunctionCall tmp retType (SpirId fName) args''
     return tmp
 exprToSpir (STupleCtr vars) = do
     loaded <- forM vars $ \var -> exprToSpir (SVar var)

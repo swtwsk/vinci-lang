@@ -7,7 +7,7 @@ import Data.Functor ((<&>))
 import qualified Frontend.AST as F
 import Core.AST
 import Core.Ops
-import Core.Toposort (sortTopologically)
+import Core.Toposort (inverselySortTopologically)
 import ManglingPrefixes (frontendToCoreVarPrefix)
 import Utils.VarSupply
 
@@ -17,7 +17,7 @@ data ProgArg = ProgVar String (Maybe Type) | ProgTuple [ProgArg] (Maybe Type)
 
 frontendProgramToCore :: F.Program -> [Prog Maybe]
 frontendProgramToCore (F.Prog phrases) = 
-    sortTopologically $ phrases >>= (flip evalVarSupply supp . phraseToCore)
+    inverselySortTopologically $ phrases >>= (flip evalVarSupply supp . phraseToCore)
     where
         supp = [frontendToCoreVarPrefix ++ show x | x <- [(0 :: Int) ..]]
 

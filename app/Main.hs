@@ -15,7 +15,7 @@ import CPS.CoreToCPS (coreToCPS)
 import qualified Frontend.AST as F
 import Frontend.TranspileAST (transpile)
 import SSA.CPStoSSA (cpsToSSA)
-import SSA.Optimizations.GraphOptimizations (optimizeGraph)
+import SSA.OptimizeAndPrepare (optimizeAndPrepare)
 import SPIRV.SSAtoSPIR (ssaToSpir)
 import SpirDemo (compileToDemoSpir)
 
@@ -66,15 +66,13 @@ typeCheckAndCompile outputType progs = case tcProgs progs of
         TCCore     -> unlines $ show <$> typeChecked
         LiftedCore -> unlines $ show <$> lambdaLiftProgs typeChecked
         CPS        -> unlines $ show . coreToCPS <$> lambdaLiftProgs typeChecked
-        SSA        -> unlines $ 
-            show . optimizeGraph . cpsToSSA . coreToCPS <$> 
-                lambdaLiftProgs typeChecked
-        SPIRV      -> unlines . fmap show . uncurry (++) . ssaToSpir $ 
-            optimizeGraph . cpsToSSA . coreToCPS <$> lambdaLiftProgs typeChecked
+        SSA        -> unlines . (show <$>) . optimizeAndPrepare $
+              cpsToSSA . coreToCPS <$> lambdaLiftProgs typeChecked
+        SPIRV      -> unlines . (show <$>) . uncurry (++) . ssaToSpir . optimizeAndPrepare $ 
+            cpsToSSA . coreToCPS <$> lambdaLiftProgs typeChecked
         FullSPIRV  ->
-            let (constsTypes, fnOps) = ssaToSpir $ 
-                    optimizeGraph . cpsToSSA . coreToCPS <$> 
-                        lambdaLiftProgs typeChecked in
+            let (constsTypes, fnOps) = ssaToSpir . optimizeAndPrepare $ 
+                     cpsToSSA . coreToCPS <$> lambdaLiftProgs typeChecked in
             compileToDemoSpir constsTypes fnOps
         _ -> "Error?"
 

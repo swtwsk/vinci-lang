@@ -17,15 +17,11 @@ import Utils.VarSupply (fromInfiniteList)
 type Label = String
 type StmtList = DList SStmt
 
-data ContType = ReturnCont
-              | RecReturnCont String
-              deriving Eq
-type ContTypeMap = Map.Map String ContType
 type PhiMap = Map.Map Label [[(Label, String)]]  -- label: [_1 <- [(l, s)], ...]
 data JumpCont = LocalCont [Var] CPS.CExpr
               | ReturnJumpCont [Var] CPS.CExpr
 
-data ReaderEnv = ReaderEnv { _contTypeMap  :: ContTypeMap
+data ReaderEnv = ReaderEnv { _funCont      :: (String, String)
                            , _currentLabel :: Label }
 
 data StateEnv = StateEnv { _untranspiledJumps :: [(Label, JumpCont, ReaderEnv)]
@@ -35,7 +31,7 @@ data StateEnv = StateEnv { _untranspiledJumps :: [(Label, JumpCont, ReaderEnv)]
 type TranspileT = RWS ReaderEnv StmtList StateEnv
 
 cpsToSSA :: CPS.CFunDef -> SFnDef
-cpsToSSA (CPS.CFunDef (CPS.Var fName t) k args expr) = 
+cpsToSSA (CPS.CFunDef (CPS.Var fName t) k args expr) =
     SFnDef fName rt (SArg <$> args') (SBlock [SGoto $ SLabel initLabel2]) labelled'
     where
         (TFun rt _) = cTypeToSSA t
@@ -43,7 +39,7 @@ cpsToSSA (CPS.CFunDef (CPS.Var fName t) k args expr) =
         initLabel = fName ++ "_init"
         initLabel2 = initLabel ++ "2"
         initPhis = (\arg -> [(initLabel, CPS._varName arg)]) <$> args
-        r = ReaderEnv { _contTypeMap = Map.singleton k (RecReturnCont fName)
+        r = ReaderEnv { _funCont = (k, fName)
                       , _currentLabel = initLabel }
         st = emptyState { _untranspiledJumps = [(initLabel2, ReturnJumpCont args' expr, r)]
                         , _phiValues = Map.singleton initLabel2 initPhis }
@@ -70,19 +66,17 @@ cExprToSSA (CPS.CLetCont k x c1 c2) = do
     modify (\ts -> ts { _untranspiledJumps = jumps' })
     cExprToSSA c2
 cExprToSSA (CPS.CAppCont k x) = do
-    isReturnBounded <- asks (Map.lookup k . _contTypeMap)
-    case isReturnBounded of
-        Just _  -> output $ SReturn (SVar $ varToSSA x)
-        Nothing -> updatePhiAndGoto k [CPS._varName x]
+    isReturnBounded <- asks ((k ==) . fst . _funCont)
+    if isReturnBounded 
+        then output $ SReturn (SVar $ varToSSA x) 
+        else updatePhiAndGoto k [CPS._varName x]
 cExprToSSA (CPS.CAppFun (CPS.Var f t) k args) = do
-    contMap <- asks _contTypeMap
-    case Map.lookup k contMap of
-        Just ReturnCont -> callFnAndReturn
-        Just (RecReturnCont g) ->
-            if f == g
+    (fnK, fnName) <- asks _funCont
+    if fnK == k
+        then if f == fnName
             then updatePhiAndGoto (f ++ "_init2") (CPS._varName <$> args) -- + phiNode f_arg1 -> x
             else callFnAndReturn
-        Nothing -> callFnAndJump -- + phiNode k_f_arg1 -> x
+        else callFnAndJump
     where
         callFn = do
             let ft@(TFun resT _) = cTypeToSSA t
@@ -102,8 +96,8 @@ cExprToSSA (CPS.CLetPrim x (CPS.CUnOp op) [a] cexpr) = do
     output $ SAssign (varToSSA x) (SUnOp op (SVar a'))
     cExprToSSA cexpr
 cExprToSSA CPS.CLetPrim {} = undefined
-cExprToSSA (CPS.CIf x k1 k2) = output $ 
-    SIf (SVar $ varToSSA x) (SLabel k1) (SLabel k2)
+cExprToSSA (CPS.CIf x k1 k2) = output $
+    SIf Nothing (SVar $ varToSSA x) (SLabel k1) (SLabel k2)
 cExprToSSA (CPS.CLetFun _fdef _cexpr) = undefined
 
 evalJumpsToSSA :: StateEnv -> (StateEnv, [SLabelledBlock])
@@ -126,7 +120,7 @@ updatePhiNodes ((SLabelled l@(SLabel l') phiNodes b):t) st = labelled' : updateP
         labelled' = SLabelled l (zipAppend phiNodes phiVars) b
         phiVars = fromMaybe [] . Map.lookup l' . _phiValues $ st
         zipAppend :: [SPhiNode] -> [[(Label, String)]] -> [SPhiNode]
-        zipAppend (SPhiNode var _:t1) (h2:t2) = 
+        zipAppend (SPhiNode var _:t1) (h2:t2) =
             SPhiNode var (first SLabel <$> h2) : zipAppend t1 t2
         zipAppend _ [] = []  -- empty phi node
         zipAppend _ _ = undefined  -- error
@@ -147,10 +141,10 @@ nextVar = do
 
 -- State
 emptyState :: StateEnv
-emptyState = 
+emptyState =
     StateEnv { _untranspiledJumps = []
              , _phiValues = Map.empty
-             , _varSupply = [cpsToSsaVarPrefix ++ show x | x <- [(0 :: Int) ..]] 
+             , _varSupply = [cpsToSsaVarPrefix ++ show x | x <- [(0 :: Int) ..]]
              }
 
 updatePhi :: Label -> [(Label, String)] -> PhiMap -> PhiMap
