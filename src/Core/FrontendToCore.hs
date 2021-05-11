@@ -92,8 +92,7 @@ exprToCore (F.ETuple exprs) = do
         foldFn e (fns, exs) = exprToCore e <&> \x -> (fns, x:exs)
 exprToCore (F.EInt _i) = undefined
 exprToCore (F.EFieldGet _expr _field) = undefined
-exprToCore (F.ECons _fields) = undefined
-exprToCore (F.ENamedCons _name _fields) = undefined
+exprToCore (F.ECons _name _fields) = undefined
 
 letBindToCore :: F.LetBind -> Expr Maybe -> SuppM (Expr Maybe)
 letBindToCore (F.ConstBind (F.LambdaVId n) e1) e2 = do

@@ -62,8 +62,7 @@ data Expr a
     | ECond a (Expr a) (Expr a) (Expr a)
     | ELetIn a (LetDef a) (Expr a)
     | ELambda a [LambdaVI a] (Expr a)
-    | ENamedCons a SIdent [FieldDef a]
-    | ECons a [FieldDef a]
+    | ECons a SIdent [FieldDef a]
     deriving (Ord, Show, Read, Functor, Foldable, Traversable)
 
 data LambdaVI a
@@ -167,8 +166,7 @@ instance Eq (Expr a) where
         cl == cr && el1 == er1 && el2 == er2
     (ELetIn _ ll el) == (ELetIn _ lr er) = ll == lr && el == er
     (ELambda _ ll el) == (ELambda _ lr er) = ll == lr && el == er
-    (ENamedCons _ sl fl) == (ENamedCons _ sr fr) = sl == sr && fl == fr
-    (ECons _ fl) == (ECons _ fr) = fl == fr
+    (ECons _ sl fl) == (ECons _ sr fr) = sl == sr && fl == fr
     _ == _ = False
 
 instance Eq (LambdaVI a) where
@@ -216,9 +214,9 @@ instance HasPosition (Program BNFC'Position) where
 instance HasPosition (Phrase BNFC'Position) where
     hasPosition = \case
         Value p _ -> p
-        Expression p _ -> p
         StructDecl p _ -> p
         TypeSynon p _ _ -> p
+        Expression p _ -> p
 
 instance HasPosition (LetDef BNFC'Position) where
     hasPosition = \case
@@ -262,8 +260,7 @@ instance HasPosition (Expr BNFC'Position) where
         ECond p _ _ _ -> p
         ELetIn p _ _ -> p
         ELambda p _ _ -> p
-        ENamedCons p _ _ -> p
-        ECons p _ -> p
+        ECons p _ _ -> p
 
 instance HasPosition (LambdaVI BNFC'Position) where
     hasPosition = \case

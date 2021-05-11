@@ -63,8 +63,7 @@ instance Transpilable (Abs.Expr a) Expr where
     transpile (Abs.ELetIn _ letdef expr) = ELetIn (transpile letdef) (transpile expr)
     transpile (Abs.ELambda _ lambdavis expr) = ELambda (transpile <$> lambdavis) (transpile expr)
     transpile (Abs.ETuple _ e1 exprs) = ETuple $ transpile e1 : (transpile <$> exprs)
-    transpile (Abs.ENamedCons _ sident fielddefs) = ENamedCons (extractSIdent sident) (transpile <$> fielddefs)
-    transpile (Abs.ECons _ fielddefs) = ECons (transpile <$> fielddefs)
+    transpile (Abs.ECons _ sident fielddefs) = ECons (extractSIdent sident) (transpile <$> fielddefs)
 
 instance Transpilable (Abs.LambdaVI a) LambdaVI where
     transpile (Abs.LambdaVId _ vident) = LambdaVId (extractVIdent vident)

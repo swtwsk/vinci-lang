@@ -125,9 +125,9 @@ instance Print (Parser.AbsVinci.Program a) where
 instance Print (Parser.AbsVinci.Phrase a) where
   prt i = \case
     Parser.AbsVinci.Value _ letdef -> prPrec i 0 (concatD [prt 0 letdef])
-    Parser.AbsVinci.Expression _ expr -> prPrec i 0 (concatD [prt 0 expr])
     Parser.AbsVinci.StructDecl _ structdef -> prPrec i 0 (concatD [prt 0 structdef])
     Parser.AbsVinci.TypeSynon _ sident type_ -> prPrec i 0 (concatD [doc (showString "type"), prt 0 sident, doc (showString "="), prt 0 type_])
+    Parser.AbsVinci.Expression _ expr -> prPrec i 0 (concatD [prt 0 expr])
   prtList _ [] = concatD []
   prtList _ (x:xs) = concatD [prt 0 x, doc (showString ";;"), prt 0 xs]
 
@@ -186,8 +186,7 @@ instance Print (Parser.AbsVinci.Expr a) where
     Parser.AbsVinci.ECond _ expr1 expr2 expr3 -> prPrec i 0 (concatD [doc (showString "if"), prt 0 expr1, doc (showString "then"), prt 0 expr2, doc (showString "else"), prt 0 expr3])
     Parser.AbsVinci.ELetIn _ letdef expr -> prPrec i 0 (concatD [prt 0 letdef, doc (showString "in"), prt 0 expr])
     Parser.AbsVinci.ELambda _ lambdavis expr -> prPrec i 0 (concatD [doc (showString "\\"), prt 0 lambdavis, doc (showString "->"), prt 0 expr])
-    Parser.AbsVinci.ENamedCons _ sident fielddefs -> prPrec i 0 (concatD [prt 0 sident, doc (showString "{"), prt 0 fielddefs, doc (showString "}")])
-    Parser.AbsVinci.ECons _ fielddefs -> prPrec i 0 (concatD [doc (showString "{"), prt 0 fielddefs, doc (showString "}")])
+    Parser.AbsVinci.ECons _ sident fielddefs -> prPrec i 0 (concatD [prt 0 sident, doc (showString "{"), prt 0 fielddefs, doc (showString "}")])
   prtList _ [x] = concatD [prt 0 x]
   prtList _ (x:xs) = concatD [prt 0 x, doc (showString ","), prt 0 xs]
 

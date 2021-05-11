@@ -47,8 +47,7 @@ data Expr = EId String
           | ELetIn LetDef Expr
           | ELambda [LambdaVI] Expr
           | ETuple [Expr]
-          | ENamedCons String [FieldDef]
-          | ECons [FieldDef]
+          | ECons String [FieldDef]
           deriving (Eq, Ord, Read)
 
 data LambdaVI = TypedVId LambdaVI Type
@@ -122,9 +121,8 @@ instance Show Expr where
     show (ELambda lambdavis expr) = 
         "\\" ++ intercalate ", " (show <$> lambdavis) ++ " -> " ++ show expr
     show (ETuple exprs) = "(" ++ intercalate ", " (show <$> exprs) ++ ")"
-    show (ENamedCons structName fields) = 
+    show (ECons structName fields) = 
         structName ++ " {\n" ++ intercalate ", " (show <$> fields) ++ "\n}"
-    show (ECons fields) = "{\n" ++ intercalate ", " (show <$> fields) ++ "\n}"
 
 instance Show LambdaVI where
     show (TypedVId lambdavi t) = "(" ++ show lambdavi ++ " : " ++ show t ++ ")"

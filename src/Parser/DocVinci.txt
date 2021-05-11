@@ -112,7 +112,6 @@ All other symbols are terminals.
   |  |  **|**  | //LetDef// ``in`` //Expr//
   |  |  **|**  | ``\`` //[LambdaVI]// ``->`` //Expr//
   |  |  **|**  | //SIdent// ``{`` //[FieldDef]// ``}``
-  |  |  **|**  | ``{`` //[FieldDef]// ``}``
   |  |  **|**  | //Expr1//
   | //LambdaVI// | -> | ``(`` //LambdaVI// ``:`` //Type// ``)``
   |  |  **|**  | //VIdent//

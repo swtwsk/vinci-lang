@@ -52,8 +52,7 @@ EOr.        Expr     ::= Expr1 "||" Expr ;
 ECond.      Expr     ::= "if" Expr "then" Expr "else" Expr ;
 ELetIn.     Expr     ::= LetDef "in" Expr ;
 ELambda.    Expr     ::= "\\" [LambdaVI] "->" Expr ;
-ENamedCons. Expr     ::= SIdent "{" [FieldDef] "}" ;
-ECons.      Expr     ::= "{" [FieldDef] "}" ;
+ECons.      Expr     ::= SIdent "{" [FieldDef] "}" ;
 
 TypedVId.   LambdaVI ::= "(" LambdaVI ":" Type ")" ;
 LambdaVId.  LambdaVI ::= VIdent ;
