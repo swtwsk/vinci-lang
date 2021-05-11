@@ -25,7 +25,8 @@ data SStmt = SAssign Var SExpr
 
 data SExpr = SVar Var
            | SApp Var [Var]
-           | STupleCtr [Var]
+           | SStructCtr SpirType [Var]  -- also TupleCtr
+           | SStructGet Int Var
            | STupleProj Int Var
            | SBinOp BinOp SExpr SExpr
            | SUnOp UnOp SExpr
@@ -94,7 +95,9 @@ instance Show SArg where
 instance Show SExpr where
     show (SVar v) = show v
     show (SApp f args) = show f ++ "(" ++ intercalate "," (show <$> args) ++ ")"
-    show (STupleCtr vars) = "(" ++ intercalate ", " (show <$> vars) ++ ")"
+    show (SStructCtr sType vars) = 
+        show sType ++ " { " ++ intercalate ", " (show <$> vars) ++ " }"
+    show (SStructGet i v) = "get" ++ show i ++ "(" ++ show v ++ ")"
     show (STupleProj i v) = "π" ++ show i ++ "(" ++ show v ++ ")"
     show (SBinOp op e1 e2) = show e1 ++ " " ++ show op ++ " " ++ show e2
     show (SUnOp op e) = show op ++ " " ++ show e

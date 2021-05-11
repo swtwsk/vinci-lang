@@ -21,6 +21,8 @@ data SpirOp = OpFunction SpirId SpirId SpirFunctionControl SpirId
             | OpFunctionEnd
             | OpFunctionCall SpirId SpirId SpirId [SpirId]
             | OpExtInst SpirId SpirId SpirId String [SpirId]
+            | OpConstantTrue SpirId SpirId
+            | OpConstantFalse SpirId SpirId
             | OpConstant SpirId SpirId SpirConst
             | OpSNegate SpirId SpirId SpirId
             | OpFNegate SpirId SpirId SpirId
@@ -48,12 +50,12 @@ data SpirOp = OpFunction SpirId SpirId SpirFunctionControl SpirId
             | OpTypeInt SpirId Int Bool
             | OpTypeFloat SpirId Int
             | OpTypeVector SpirId SpirId Int
+            | OpTypeStruct SpirId [SpirId]
             | OpTypePointer SpirId SpirStorageClass SpirId
             | OpTypeFunction SpirId SpirId [SpirId]
             deriving Eq
 
 data SpirConst = SCFloat Double
-               | SCBool Bool
                | SCSigned Int
                | SCUnsigned Int
                deriving Eq
@@ -106,6 +108,10 @@ instance Show SpirOp where
     show (OpExtInst res fType extId fName args) = show res ++ " = OpExtInst " ++ 
         show fType ++ " " ++ show extId ++ " " ++ fName ++ " " ++ 
         (if not (null args) then " " else "") ++ unwords (show <$> args)
+    show (OpConstantTrue res resT)  = 
+        show res ++ " = OpConstantTrue " ++ show resT
+    show (OpConstantFalse res resT) = 
+        show res ++ " = OpConstantFalse " ++ show resT
     show (OpConstant res resType c) = 
         show res ++ " = OpConstant " ++ show resType ++ " " ++ show c
     show (OpSNegate res resT x) = showOpWithResult res "OpSNegate" [resT, x]
@@ -143,6 +149,8 @@ instance Show SpirOp where
     show (OpTypeFloat res width) = show res ++ " = OpTypeFloat " ++ show width 
     show (OpTypeVector res t size) = 
         show res ++ " = OpTypeVector " ++ show t ++ " " ++ show size
+    show (OpTypeStruct res fieldTypes) =
+        showOpWithResult res "OpTypeStruct" fieldTypes
     show (OpTypePointer res storage t) = 
         show res ++ " = OpTypePointer " ++ show storage ++ " " ++ show t
     show (OpTypeFunction res resT argTypes) = 
@@ -162,7 +170,6 @@ instance Show SpirFunctionControl where
 
 instance Show SpirConst where
     show (SCFloat f) = show f
-    show (SCBool b)  = show b
     show (SCSigned i) = show i
     show (SCUnsigned ui) = show ui
 

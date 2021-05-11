@@ -1,29 +1,64 @@
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TupleSections #-}
 module Core.FrontendToCore (
     frontendProgramToCore,
 ) where
 
+import Control.Monad.Reader
+import Data.List (sortOn)
 import Data.Foldable (foldrM)
 import Data.Functor ((<&>))
+import Data.Maybe (catMaybes)
+import qualified Data.Map as Map
+
 import qualified Frontend.AST as F
 import Core.AST
+import Core.CoreManager (CoreBindingsManager (..), TypeSynonymsMap)
 import Core.Ops
 import Core.Toposort (inverselySortTopologically)
 import ManglingPrefixes (frontendToCoreVarPrefix)
+import StructDefMap (StructDefMap, StructName, FieldDef)
 import Utils.VarSupply
 
-type SuppM = VarSupply String
+type SuppM = ReaderT (StructDefMap Type) (VarSupply String)
 
 data ProgArg = ProgVar String (Maybe Type) | ProgTuple [ProgArg] (Maybe Type)
 
-frontendProgramToCore :: F.Program -> [Binding Maybe]
+data PhraseTranslation = PhraseBind [Binding Maybe]
+                       | TypeSynonym Type Type
+
+frontendProgramToCore :: F.Program -> CoreBindingsManager Maybe
 frontendProgramToCore (F.Prog phrases) = 
-    inverselySortTopologically $ phrases >>= run
+    let (bindings, typeSynonyms) = extractTranslations translations
+        sortedBindings = inverselySortTopologically bindings in
+    CoreBindingsManager { _bindings = sortedBindings
+                        , _bindTypeSynonyms = typeSynonyms
+                        , _bindStructDefs = structDefs }
     where
-        run = flip evalVarSupply supp . phraseToCore
+        structDefs = Map.fromList . catMaybes $ structsToCore <$> phrases
+        run = flip evalVarSupply supp . flip runReaderT structDefs . phraseToCore
+        translations = catMaybes $ run <$> phrases
         supp = [frontendToCoreVarPrefix ++ show x | x <- [(0 :: Int) ..]]
 
-phraseToCore :: F.Phrase -> SuppM [Binding Maybe]
-phraseToCore (F.Value (F.Let binds)) = mapM bindToProg binds
+extractTranslations :: [PhraseTranslation] -> ([Binding Maybe], TypeSynonymsMap)
+extractTranslations (h:t) = case h of
+        PhraseBind hBinds -> (hBinds ++ binds, types)
+        TypeSynonym synonym ty -> (binds, Map.insert synonym ty types)
+    where
+        (binds, types) = extractTranslations t
+extractTranslations [] = ([], Map.empty)
+
+structsToCore :: F.Phrase -> Maybe (StructName, [FieldDef Type])
+structsToCore (F.StructDecl (F.SDef structName _polys fields)) =
+    let fields' = (\(F.FieldDecl f ty) -> (f, typeToCore ty)) <$> fields in
+    Just (structName, fields')
+structsToCore _ = Nothing
+
+phraseToCore :: F.Phrase -> SuppM (Maybe PhraseTranslation)
+phraseToCore (F.Value (F.Let binds)) = Just . PhraseBind <$> mapM bindToProg binds
+phraseToCore (F.TypeSynonym synonym ty) = 
+    return . Just $ TypeSynonym (TStruct synonym) (typeToCore ty)
+phraseToCore (F.StructDecl _) = return Nothing
 phraseToCore _ = undefined
 
 bindToProg :: F.LetBind -> SuppM (Binding Maybe)
@@ -78,7 +113,6 @@ exprToCore (F.ECond cond e1 e2) =
     If <$> exprToCore cond <*> exprToCore e1 <*> exprToCore e2
 exprToCore (F.ELetIn (F.Let binds) e) = 
     exprToCore e >>= \te -> foldrM letBindToCore te binds
-exprToCore (F.ELambda _lambdas _e) = undefined
 exprToCore (F.ETuple exprs) = do
     (funs, tuple) <- foldrM foldFn ([], []) exprs
     return $ foldr LetFun (TupleCons tuple) funs
@@ -91,8 +125,9 @@ exprToCore (F.ETuple exprs) = do
             (args'', e''') <- extractProgArgs args' e''
             return (Prog tmp args'' e''':fns, Var tmp:exs)
         foldFn e (fns, exs) = exprToCore e <&> \x -> (fns, x:exs)
-exprToCore (F.EFieldGet _expr _field) = undefined
-exprToCore (F.ECons _name _fields) = undefined
+exprToCore (F.EFieldGet expr field) = FieldGet field <$> exprToCore expr
+exprToCore (F.ECons structName fields) = fieldsToCore structName fields
+exprToCore (F.ELambda _lambdas _e) = undefined
 
 letBindToCore :: F.LetBind -> Expr Maybe -> SuppM (Expr Maybe)
 letBindToCore (F.ConstBind (F.LambdaVId n) e1) e2 = do
@@ -182,6 +217,23 @@ typeToCore F.TFloat = TFloat
 typeToCore F.TBool = TBool
 typeToCore (F.TStruct structName) = case structName of
     'V':'e':'c':i -> TTuple TFloat (read i)
-    _ -> undefined
+    _ -> TStruct structName
 typeToCore (F.TPoly _) = undefined
 typeToCore (F.TFun t1 t2) = TFun (typeToCore t1) (typeToCore t2)
+
+fieldsToCore :: StructName -> [F.FieldDef] -> SuppM (Expr Maybe)
+fieldsToCore structName fields = do
+    structDefs <- asks (Map.! structName)
+    let sortedFields = sortWithOrder structDefs fields
+        sortedPairs = (\(F.FieldDef s e) -> (s, e)) <$> sortedFields
+    fields' <- mapM (exprToCore . snd) sortedPairs
+    return $ Cons structName fields'
+
+-- based on https://stackoverflow.com/a/26260968
+sortWithOrder :: [FieldDef Type] -- order list
+              -> [F.FieldDef]    -- source list
+              -> [F.FieldDef]
+sortWithOrder order = sortOn getOrder
+    where
+        getOrder (F.FieldDef k _) = Map.findWithDefault (-1) k ordermap
+        ordermap = Map.fromList (zip (fst <$> order) [(0 :: Int)..])

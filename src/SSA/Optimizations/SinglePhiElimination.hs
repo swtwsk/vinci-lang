@@ -73,7 +73,9 @@ removePhiExpr (SApp f vars) = do
     f' <- getVarAfterRemove f
     vars' <- mapM getVarAfterRemove vars
     return $ SApp f' vars'
-removePhiExpr (STupleCtr vars) = STupleCtr <$> mapM getVarAfterRemove vars
+removePhiExpr (SStructCtr sType vars) = 
+    SStructCtr sType <$> mapM getVarAfterRemove vars
+removePhiExpr (SStructGet i v) = SStructGet i <$> getVarAfterRemove v
 removePhiExpr (STupleProj i v) = STupleProj i <$> getVarAfterRemove v
 removePhiExpr (SBinOp op e1 e2) = 
     SBinOp op <$> removePhiExpr e1 <*> removePhiExpr e2

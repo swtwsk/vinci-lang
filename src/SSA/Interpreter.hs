@@ -20,7 +20,7 @@ type SSAM = ReaderT FunctionsMap (StateT StateEnv (Except Err))
 data Value = VFloat Double
            | VBool Bool
            | VInt Int
-           | VTuple [Value]
+           | VStruct [Value]
            deriving Eq
 
 run :: [SFnDef] -> String -> [Double] -> Either Err Value
@@ -94,11 +94,17 @@ runExpr (SApp (Var f _) args) = do
     val  <- run' fDef argsVal
     put oldState
     maybe (throwError $ f ++ " hasn't returned anything") return val
-runExpr (STupleCtr vars) = VTuple <$> forM vars (runExpr . SVar)
+runExpr (SStructCtr _ vars) = VStruct <$> forM vars (runExpr . SVar)
+runExpr (SStructGet i (Var v _)) = do
+    values <- gets _values
+    case Map.lookup v values of
+        Just (VStruct vals) -> return $ vals !! i
+        Just val -> throwError $ "Expected struct, got " ++ show val ++ " instead"
+        Nothing -> throwError $ "Unbound variable " ++ v
 runExpr (STupleProj i (Var v _)) = do
     values <- gets _values
     case Map.lookup v values of
-        Just (VTuple vals) -> return $ vals !! i
+        Just (VStruct vals) -> return $ vals !! i
         Just val -> throwError $ "Expected tuple, got " ++ show val ++ " instead"
         Nothing -> throwError $ "Unbound variable " ++ v
 runExpr (SBinOp op e1 e2) = do
@@ -131,4 +137,4 @@ instance Show Value where
     show (VFloat f) = show f
     show (VBool b)  = show b
     show (VInt i)   = show i
-    show (VTuple vals) = "(" ++ intercalate ", " (show <$> vals) ++ ")"
+    show (VStruct vals) = "{ " ++ intercalate ", " (show <$> vals) ++ " }"

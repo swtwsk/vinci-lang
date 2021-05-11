@@ -2,6 +2,7 @@ module Core.Interpreter (eval, evalExpr, evalExprEnv, Value(..)) where
 
 import Control.Monad.Reader
 import Control.Monad.Except
+import Data.Bifunctor (first)
 import Data.List (intercalate)
 import qualified Data.Map as Map
 
@@ -10,16 +11,17 @@ import Core.Ops
 
 type Err = String
 type Env = Map.Map String Value
-type EvalM = ReaderT Env (Except Err)
+type EvalM = ReaderT (Env, Map.Map String [String]) (Except Err)
 
 data Value = VFloat Double
            | VBool Bool
            | VInt Int
            | VTuple [Value]
+           | VStruct String [Value]
            | VClosure String [String] (Expr Maybe) Env
            deriving (Eq)
 
--- TODO: FIX INTERPRETER
+-- TODO: FIX INTERPRETER (ACCOUNT FOR STRUCTS!)
 
 eval :: Prog Maybe -> Either Err Value
 eval (Prog (VarId fn _) args e) = pure $ VClosure fn (_varName <$> args) e Map.empty
@@ -28,11 +30,11 @@ evalExpr :: Expr Maybe -> Either Err Value
 evalExpr = evalExprEnv Map.empty
 
 evalExprEnv :: Env -> Expr Maybe -> Either Err Value
-evalExprEnv env e = runExcept $ runReaderT (eval' e) env
+evalExprEnv env e = runExcept $ runReaderT (eval' e) (env, Map.empty)
 
 eval' :: Expr Maybe -> EvalM Value
 eval' (Var (VarId var _)) = do
-    env <- ask
+    env <- asks fst
     maybe (throwError $ "Unbound variable " ++ var) return $ Map.lookup var env
 eval' (Lit l) = case l of
     LFloat f -> return $ VFloat f
@@ -42,6 +44,12 @@ eval' (App e1 e2) = do
     e1' <- eval' e1
     e2' <- eval' e2
     apply e1' e2'
+eval' (Cons s exprs) = VStruct s <$> mapM eval' exprs
+eval' (FieldGet _i _e) = undefined
+    -- e' <- eval' e
+    -- -- fields <- 
+    -- let (VStruct s vals) = e'
+    -- return $ vals !! i
 eval' (TupleCons exprs) = VTuple <$> mapM eval' exprs
 eval' (TupleProj i e) = do
     e' <- eval' e
@@ -54,10 +62,10 @@ eval' (If cond e1 e2) = do
         _ -> throwError $ show cond ++ " hasn't evaluated to bool"
 eval' (Let (VarId n _) e1 e2) = do
     e1' <- eval' e1
-    local (Map.insert n e1') (eval' e2)
+    local (first $ Map.insert n e1') (eval' e2)
 eval' (LetFun (Prog (VarId f _) args e1) e2) = do
-    f' <- asks (VClosure f (_varName <$> args) e1)
-    local (Map.insert f f') (eval' e2)
+    f' <- asks (VClosure f (_varName <$> args) e1 . fst)
+    local (first $ Map.insert f f') (eval' e2)
 eval' (BinOp op e1 e2) = do
     e1' <- eval' e1
     e2' <- eval' e2
@@ -86,9 +94,9 @@ eval' (UnOp op e) = do
 
 apply :: Value -> Value -> EvalM Value
 apply f@(VClosure fn [h] e1 cenv) e2 = 
-    local (Map.insert fn f . Map.insert h e2 . Map.union cenv) (eval' e1)
+    local (first $ Map.insert fn f . Map.insert h e2 . Map.union cenv) (eval' e1)
 apply f@(VClosure fn (h:t) e1 cenv) e2 = do
-    newEnv <- asks (Map.insert fn f . Map.insert h e2 . Map.union cenv)
+    newEnv <- asks (Map.insert fn f . Map.insert h e2 . Map.union cenv . fst)
     return $ VClosure "_" t e1 newEnv
 -- apply f@(VFixed fn (Lam x e1) cenv) e2 = flip local (eval' e1) $
 --     Map.insert fn f . Map.insert x e2 . Map.union cenv
@@ -100,4 +108,5 @@ instance Show Value where
     show (VBool b)   = show b
     show (VInt i)    = show i
     show (VTuple vs) = "(" ++ intercalate "," (show <$> vs) ++ ")"
+    show (VStruct s vs) = show s ++ " { " ++ intercalate "," (show <$> vs) ++ " }"
     show VClosure {} = "<fun>"

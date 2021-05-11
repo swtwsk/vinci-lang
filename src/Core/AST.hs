@@ -15,7 +15,8 @@ data VarId f = VarId { _varName :: VarName
 pattern Var' :: VarName -> Type -> VarId Identity
 pattern Var' { varN, varT } = VarId { _varName = varN, _varType = Identity varT }
 
-data Binding f = ProgBinding (Prog f) | ConstBinding (VarId f) (Expr f)
+data Binding f = ProgBinding (Prog f) 
+               | ConstBinding (VarId f) (Expr f)
                deriving (Eq, Ord)
 
 data Prog f = Prog (VarId f) [VarId f] (Expr f)
@@ -25,6 +26,8 @@ data Expr f = Var (VarId f)
             | Lit Lit
             | App (Expr f) (Expr f)
             | If (Expr f) (Expr f) (Expr f)
+            | Cons String [Expr f]
+            | FieldGet String (Expr f)
             | TupleCons [Expr f]
             | TupleProj Int (Expr f)
             | Let (VarId f) (Expr f) (Expr f)
@@ -38,12 +41,13 @@ data Lit = LFloat Double
          | LInt Int
          deriving (Eq, Ord)
 
-data Type = TFloat
+data Type = TInt
+          | TFloat
           | TBool
           | TFun Type Type
           | TTuple Type Int
+          | TStruct String
           | TDummy
-          | TInt
         --   | TVar String
           deriving (Eq, Ord)
 
@@ -100,7 +104,10 @@ instance (ShowableFunctor f) => Show (Expr f) where
     show (App e1 e2) = "(" ++ show e1 ++ ")(" ++ show e2 ++ ")"
     show (If cond e1 e2) = "if " ++ show cond ++ " then " ++ show e1 ++ 
         " else " ++ show e2
-    show (TupleCons exprs) = "(" ++ intercalate "," (show <$> exprs) ++ ")"
+    show (Cons structName exprs) = 
+        structName ++ " { " ++ intercalate ", " (show <$> exprs) ++ " }"
+    show (FieldGet field expr) = "(" ++ show expr ++ ")." ++ field
+    show (TupleCons exprs) = "(" ++ intercalate ", " (show <$> exprs) ++ ")"
     show (TupleProj i e) = "π" ++ show i ++ " " ++ show e
     show (Let n e1 e2) = "let " ++ show n ++ " = " ++ show e1 ++ " in " ++ show e2
     show (LetFun prog e2) = 
@@ -119,6 +126,7 @@ instance Show Type where
         TInt -> "Int"
         TBool -> "Bool"
         TFloat -> "Float"
+        TStruct sName -> sName
         -- TVar s -> s
         TFun t1@TFun{} t2@TFun{} -> 
             "(" ++ show t1 ++ ") -> (" ++ show t2 ++ ")"

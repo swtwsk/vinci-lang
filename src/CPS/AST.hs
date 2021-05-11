@@ -14,6 +14,7 @@ type CVar = String
 
 data CExpr = CLetVal Var CVal CExpr             -- letval x = V in K
            | CLetProj Var Int Var CExpr         -- let x = #i y in K
+           | CLetFieldGet Var String Var CExpr  -- let x = #f y in K
            | CLetCont CVar Var CExpr CExpr      -- letcont k x = K in K'
            | CLetFun CFunDef CExpr              -- letfun F in K
            | CAppCont CVar Var                  -- k x
@@ -26,6 +27,7 @@ data CVal = CLitFloat Double
           | CLitBool Bool
           | CLitInt Int
           | CTuple [Var]
+          | CStruct String [Var]
           deriving Eq
 
 data CPrimOp = CBinOp BinOp 
@@ -40,6 +42,7 @@ data CType = CTFloat
            | CTInt
            | CTFun CType CType
            | CTTuple CType Int
+           | CTStruct String
            | CTBottom            -- meaning applied continuation
            deriving Eq
 
@@ -181,6 +184,7 @@ instance Show Var where
 instance Show CExpr where
     show (CLetVal x cval cexpr) = "letval " ++ show x ++ " = (" ++ show cval ++ ") in " ++ show cexpr
     show (CLetProj x i t c) = "let " ++ show x ++ " = π" ++ show i ++ " " ++ show t ++ " in " ++ show c
+    show (CLetFieldGet x f struct c) = "let " ++ show x ++ " = " ++ show struct ++ "." ++ f ++ " in " ++ show c
     show (CLetCont k x c1 c2) = "letcont " ++ k ++ " " ++ show x ++ " = (" ++ show c1 ++ ") in " ++ show c2
     show (CLetFun f cexpr) = "letfun " ++ show f ++ " in " ++ show cexpr
     show (CAppCont k x) = k ++ " " ++ show x
@@ -193,6 +197,8 @@ instance Show CVal where
     show (CLitBool b) = show b
     show (CLitInt i) = show i
     show (CTuple vars) = "(" ++ intercalate ", " (show <$> vars) ++ ")"
+    show (CStruct sName vars) = 
+        sName ++ " { " ++ intercalate ", " (show <$> vars) ++ " }"
 
 instance Show CPrimOp where
     show (CBinOp op) = show op
@@ -213,4 +219,5 @@ instance Show CType where
         CTFun t1@CTFun{} t2 -> "(" ++ show t1 ++ ") -> " ++ show t2
         CTFun t1 t2 -> show t1 ++ " -> " ++ show t2
         CTTuple t' i -> intercalate " × " (show <$> replicate i t')
+        CTStruct sName -> sName
         CTBottom -> "⊥"

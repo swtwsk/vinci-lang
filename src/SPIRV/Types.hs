@@ -8,6 +8,7 @@ data SpirType = TBool
               | TUnsignedInt
               | TFloat
               | TVector SpirType Int
+              | TStruct String
               | TVoid
               | TPointer SpirStorageClass SpirType
               | TFun SpirType [SpirType]
@@ -19,6 +20,7 @@ instance Show SpirType where
     show TUnsignedInt = "uint"
     show TFloat = "float"
     show (TVector t size) = "v" ++ show size ++ show t
+    show (TStruct sName) = sName
     show TVoid = "void"
     show (TPointer _ t) = "*" ++ show t
     show (TFun ret args) = 

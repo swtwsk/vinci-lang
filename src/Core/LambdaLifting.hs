@@ -54,6 +54,8 @@ parameterLiftExpr (If c e1 e2) = do
     e1' <- parameterLiftExpr e1
     e2' <- parameterLiftExpr e2
     return $ If c' e1' e2'
+parameterLiftExpr (Cons sName exprs) = Cons sName <$> mapM parameterLiftExpr exprs
+parameterLiftExpr (FieldGet fName e) = FieldGet fName <$> parameterLiftExpr e
 parameterLiftExpr (TupleCons exprs) = TupleCons <$> mapM parameterLiftExpr exprs
 parameterLiftExpr (TupleProj i e) = TupleProj i <$> parameterLiftExpr e
 parameterLiftExpr (Let n e1 e2) = do
@@ -119,13 +121,14 @@ blockFloatExpr (If c e1 e2) = (sc `Set.union` s1 `Set.union` s2, If c' e1' e2')
         (sc, c')  = blockFloatExpr c
         (s1, e1') = blockFloatExpr e1
         (s2, e2') = blockFloatExpr e2
+blockFloatExpr (Cons sName exprs) = (s', Cons sName exprs')
+    where
+        (s', exprs') = extractProgs $ map blockFloatExpr exprs
+blockFloatExpr (FieldGet fieldName e) = 
+    second (FieldGet fieldName) $ blockFloatExpr e
 blockFloatExpr (TupleCons exprs) = (s', TupleCons exprs')
     where
         (s', exprs') = extractProgs $ map blockFloatExpr exprs
-        extractProgs :: [(Set.Set (Prog Identity), Expr Identity)] -> (Set.Set (Prog Identity), [Expr Identity])
-        extractProgs ((s, expr):t) = 
-            bimap (s `Set.union`) (expr:) $ extractProgs t
-        extractProgs [] = (Set.empty, [])
 blockFloatExpr (TupleProj i e) = second (TupleProj i) $ blockFloatExpr e
 blockFloatExpr (Let n e1 e2) = (s1 `Set.union` s2, Let n e1' e2')
     where
@@ -140,3 +143,7 @@ blockFloatExpr (BinOp op e1 e2) = (s1 `Set.union` s2, BinOp op e1' e2')
         (s1, e1') = blockFloatExpr e1
         (s2, e2') = blockFloatExpr e2
 blockFloatExpr (UnOp op e) = second (UnOp op) $ blockFloatExpr e
+
+extractProgs :: [(Set.Set (Prog Identity), Expr Identity)] -> (Set.Set (Prog Identity), [Expr Identity])
+extractProgs ((s, expr):t) = bimap (s `Set.union`) (expr:) $ extractProgs t
+extractProgs [] = (Set.empty, [])

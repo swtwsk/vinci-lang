@@ -10,13 +10,14 @@ import qualified Data.Map as Map
 import Core.Ops
 import LibraryList (spirLibraryList)
 import ManglingPrefixes (ssaToSpirLabelPrefix)
+import StructDefMap (StructDefMap)
 import SSA.AST
 import SPIRV.SpirOps
 import SPIRV.Types
 import Utils.DList (output)
 import Utils.VarSupply (fromInfiniteList)
 
-type ReaderEnv = ()
+type ReaderEnv = StructDefMap SpirType
 
 data StateEnv = StateEnv { _typeIds   :: TypeIdsMap
                          , _renames   :: Map.Map String String
@@ -27,20 +28,22 @@ type TypeIdsMap = Map.Map SpirType SpirId
 type SpirList = DList SpirOp
 type SpirM = RWS ReaderEnv SpirList StateEnv
 
-ssaToSpir :: [SFnDef] -> ([SpirOp], [SpirOp])
-ssaToSpir fnDefs = (typeIds ++ consts, fnOps'')
+ssaToSpir :: ([SFnDef], StructDefMap SpirType) -> ([SpirOp], [SpirOp])
+ssaToSpir (fnDefs, structDefs) = (typeIds ++ consts, fnOps'')
     where
-        (typeIds, fnOps) = ssaToSpir' fnDefs
+        (typeIds, fnOps) = ssaToSpir' fnDefs structDefs
         (consts, fnOps') = extractConst fnOps
         fnOps''          = hoistVariables fnOps'
 
         extractConst :: [SpirOp] -> ([SpirOp], [SpirOp])
         extractConst (c@OpConstant {}:t) = first (c:) $ extractConst t
+        extractConst (c@OpConstantTrue {}:t) = first (c:) $ extractConst t
+        extractConst (c@OpConstantFalse {}:t) = first (c:) $ extractConst t
         extractConst (h:t) = second (h:) $ extractConst t
         extractConst [] = ([], [])
 
 hoistVariables :: [SpirOp] -> [SpirOp]
-hoistVariables = concat . (uncurry hoistVariables' . extractVariables <$>) 
+hoistVariables = concat . (uncurry hoistVariables' . extractVariables <$>)
                         . (fst . splitToFns)
     where
         hoistVariables' :: [SpirOp] -> [SpirOp] -> [SpirOp]
@@ -61,19 +64,20 @@ hoistVariables = concat . (uncurry hoistVariables' . extractVariables <$>)
         splitToFns (h:t) = second (h:) $ splitToFns t
         splitToFns [] = ([], [])
 
-ssaToSpir' :: [SFnDef] -> ([SpirOp], [SpirOp])
-ssaToSpir' fnDefs = (typesToOps $ _typeIds finalSt, toList ops)
+ssaToSpir' :: [SFnDef] -> StructDefMap SpirType -> ([SpirOp], [SpirOp])
+ssaToSpir' fnDefs structDefs =
+    (typesToOps structDefs $ _typeIds finalSt, toList ops)
     where
         (finalSt, ops) = swap1_3 execRWS readerEnv initialStateEnv $
             mapM_ getTypeId (snd <$> funs) >> mapM_ fnDefToSpir fnDefs
 
-        readerEnv = ()
-        initialStateEnv = StateEnv 
+        readerEnv = structDefs
+        initialStateEnv = StateEnv
             { _typeIds = Map.empty
             , _renames = Map.empty
             , _phiVars = Map.empty
             , _varSupply = [show i | i <- [(61 :: Int)..]] }
-        funs = flip fmap fnDefs $ \(SFnDef fName rt args _ _) -> 
+        funs = flip fmap fnDefs $ \(SFnDef fName rt args _ _) ->
                 (fName, TFun rt ((\(SArg (Var _ t)) -> TPointer StorFunction t) <$> args))
 
 fnDefToSpir :: SFnDef -> SpirM ()
@@ -83,7 +87,7 @@ fnDefToSpir (SFnDef fName rt fArgs block labelled) = do
     funType  <- getTypeId $ TFun rt ats
     output $ OpFunction (SpirId fName) retType FCNone funType
 
-    renamedArgs <- forM fArgs $ \(SArg (Var arg _)) -> 
+    renamedArgs <- forM fArgs $ \(SArg (Var arg _)) ->
                         (arg, ) <$> buildVar ((arg ++ "_")++)
     zipWithM_ processArgs renamedArgs ats
     renamedLabels <- mapM (\(SLabelled (SLabel l) _ _) -> (toLabel l, ) <$> nextVar) labelled
@@ -182,24 +186,36 @@ exprToSpir (SApp (Var fName fType) args) = do
             output $ OpStore varTmp argTmp
             return varTmp
         Nothing -> return (SpirId arg)
-        -- tmp <- SpirId <$> nextVar
     case Map.lookup fName spirLibraryList of
         Just fName' -> do
             argTmps <- replicateM (length args'') nextVar
-            zipWithM_ (\arg tmp' -> output (OpLoad tmp' retType arg)) 
+            zipWithM_ (\arg tmp' -> output (OpLoad tmp' retType arg))
                 args'' (SpirId <$> argTmps)
             -- TODO: OpExtInst is looking up for "extension", should not be hardcoded
             output $ OpExtInst tmp retType (SpirId "1") fName' (SpirId <$> argTmps)
         Nothing     ->
             output $ OpFunctionCall tmp retType (SpirId fName) args''
     return (tmp, rt)
-exprToSpir (STupleCtr vars) = do
+exprToSpir (SStructCtr sType vars) = do
     loaded <- forM vars $ \var -> exprToSpir (SVar var)
     tmp <- SpirId <$> nextVar
-    let retType = TVector TFloat $ length vars
-    retTypeId <- getTypeId retType
-    output $ OpCompositeConstruct tmp retTypeId (fst <$> loaded)
-    return (tmp, retType)
+    sTypeId <- getTypeId sType
+    output $ OpCompositeConstruct tmp sTypeId (fst <$> loaded)
+    return (tmp, sType)
+exprToSpir (SStructGet i (Var struct t)) = do
+    vars <- replicateM 3 nextVar
+    let [iVar, resVar, tmp] = SpirId <$> vars
+    intType <- getTypeId TInt
+    tuple' <- SpirId <$> getRenamedVar struct
+    let (TStruct sName) = t
+    (_, fieldTy) <- asks ((!! i) . (Map.! sName))
+    ptrVarType <- getTypeId (TPointer StorFunction fieldTy)
+    varType <- getTypeId fieldTy
+
+    output $ OpConstant iVar intType (SCSigned i)
+    output $ OpAccessChain resVar ptrVarType tuple' iVar
+    output $ OpLoad tmp varType resVar
+    return (tmp, fieldTy)
 exprToSpir (STupleProj i (Var tuple t)) = do
     vars <- replicateM 3 nextVar
     let [iVar, resVar, tmp] = SpirId <$> vars
@@ -257,8 +273,8 @@ exprToSpir (SLitFloat f) = do
     return (v, TFloat)
 exprToSpir (SLitBool b) = do
     v <- SpirId <$> nextVar
-    floatType <- getTypeId TBool
-    output $ OpConstant v floatType (SCBool b)
+    boolType <- getTypeId TBool
+    output $ if b then OpConstantTrue v boolType else OpConstantFalse v boolType
     return (v, TBool)
 exprToSpir (SLitInt i) = do
     v <- SpirId <$> nextVar
@@ -296,7 +312,7 @@ toLabel = (ssaToSpirLabelPrefix ++)
 getTypeId :: SpirType -> SpirM SpirId
 getTypeId t@(TVector inner _) = getTypeId' inner >> getTypeId' t
 getTypeId t@(TPointer _ inner) = getTypeId' inner >> getTypeId' t
-getTypeId t@(TFun ret args) = 
+getTypeId t@(TFun ret args) =
     getTypeId' ret >> mapM_ getTypeId' args >> getTypeId' t
 getTypeId t = getTypeId' t
 
@@ -319,17 +335,20 @@ buildVar :: (String -> String) -> SpirM String
 buildVar f = fmap f nextVar
 
 -- walk types
-typesToOps :: TypeIdsMap -> [SpirOp]
-typesToOps typeIds = flip fmap (Map.toList typeIds) $ \(t, var) -> case t of
-    TBool -> OpTypeBool var
-    TInt -> OpTypeInt var 32 True
-    TUnsignedInt -> OpTypeInt var 32 False
-    TFloat -> OpTypeFloat var 32
-    TVector t' size -> OpTypeVector var (typeIds Map.! t') size
-    TVoid -> OpTypeVoid var
-    TPointer storage t' -> OpTypePointer var storage (typeIds Map.! t')
-    TFun ret args -> 
-        OpTypeFunction var (typeIds Map.! ret) ((typeIds Map.!) <$> args)
+typesToOps :: StructDefMap SpirType -> TypeIdsMap -> [SpirOp]
+typesToOps structDefs typeIds = flip fmap (Map.toList typeIds) $
+    \(t, var) -> case t of
+        TBool -> OpTypeBool var
+        TInt -> OpTypeInt var 32 True
+        TUnsignedInt -> OpTypeInt var 32 False
+        TFloat -> OpTypeFloat var 32
+        TVector t' size -> OpTypeVector var (typeIds Map.! t') size
+        TVoid -> OpTypeVoid var
+        TPointer storage t' -> OpTypePointer var storage (typeIds Map.! t')
+        TFun ret args ->
+            OpTypeFunction var (typeIds Map.! ret) ((typeIds Map.!) <$> args)
+        TStruct sName -> OpTypeStruct var $
+            (typeIds Map.!) . snd <$> (structDefs Map.! sName)
 
 -- courtesy of https://stackoverflow.com/a/12131896
 swap1_3 :: (a -> b -> c -> d) -> (b -> c -> a -> d)

@@ -1,15 +1,17 @@
 {-# LANGUAGE TupleSections #-}
-module SSA.CPStoSSA (cpsToSSA) where
+module SSA.CPStoSSA (cpsToSSA, cpsFunToSSA) where
 
 import Control.Monad.RWS
-import qualified Data.Map as Map
-import Data.DList (DList, toList)
 import Data.Bifunctor
-import Data.Maybe (fromMaybe)
+import Data.DList (DList, toList)
+import Data.List (findIndex)
+import Data.Maybe (fromJust, fromMaybe)
+import qualified Data.Map as Map
 
 import qualified CPS.AST as CPS
 import ManglingPrefixes (cpsToSsaVarPrefix)
 import SSA.AST
+import StructDefMap (StructDefMap)
 import SPIRV.Types
 import Utils.DList (output)
 import Utils.VarSupply (fromInfiniteList)
@@ -22,7 +24,8 @@ data JumpCont = LocalCont [Var] CPS.CExpr
               | ReturnJumpCont [Var] CPS.CExpr
 
 data ReaderEnv = ReaderEnv { _funCont      :: (String, String)
-                           , _currentLabel :: Label }
+                           , _currentLabel :: Label
+                           , _structDefs   :: StructDefMap CPS.CType }
 
 data StateEnv = StateEnv { _untranspiledJumps :: [(Label, JumpCont, ReaderEnv)]
                          , _phiValues :: PhiMap
@@ -30,8 +33,18 @@ data StateEnv = StateEnv { _untranspiledJumps :: [(Label, JumpCont, ReaderEnv)]
 
 type TranspileT = RWS ReaderEnv StmtList StateEnv
 
-cpsToSSA :: CPS.CFunDef -> SFnDef
-cpsToSSA (CPS.CFunDef (CPS.Var fName t) k args expr) =
+cpsToSSA :: ([CPS.CFunDef], StructDefMap CPS.CType) 
+         -> ([SFnDef], StructDefMap SpirType)
+cpsToSSA (funDefs, structDefs) = (fnDefs, spirStructDefs)
+    where
+        fnDefs = cFunToSSA structDefs <$> funDefs
+        spirStructDefs = Map.map (second cTypeToSSA <$>) structDefs
+
+cpsFunToSSA :: CPS.CFunDef -> SFnDef
+cpsFunToSSA = cFunToSSA Map.empty
+
+cFunToSSA :: StructDefMap CPS.CType -> CPS.CFunDef -> SFnDef
+cFunToSSA structDefs (CPS.CFunDef (CPS.Var fName t) k args expr) =
     SFnDef fName rt (SArg <$> args') (SBlock [SGoto $ SLabel initLabel2]) labelled'
     where
         (TFun rt _) = cTypeToSSA t
@@ -40,7 +53,8 @@ cpsToSSA (CPS.CFunDef (CPS.Var fName t) k args expr) =
         initLabel2 = initLabel ++ "2"
         initPhis = (\arg -> [(initLabel, CPS._varName arg)]) <$> args
         r = ReaderEnv { _funCont = (k, fName)
-                      , _currentLabel = initLabel }
+                      , _currentLabel = initLabel
+                      , _structDefs = structDefs }
         st = emptyState { _untranspiledJumps = [(initLabel2, ReturnJumpCont args' expr, r)]
                         , _phiValues = Map.singleton initLabel2 initPhis }
         (endState, labelled) = evalJumpsToSSA st
@@ -49,13 +63,22 @@ cpsToSSA (CPS.CFunDef (CPS.Var fName t) k args expr) =
 cExprToSSA :: CPS.CExpr -> TranspileT ()
 cExprToSSA (CPS.CLetVal x val cexpr) = do
     output . SAssign (varToSSA x) $ case val of
-        CPS.CLitFloat f -> SLitFloat f
-        CPS.CLitBool b  -> SLitBool b
-        CPS.CLitInt i   -> SLitInt i
-        CPS.CTuple vars -> STupleCtr $ varToSSA <$> vars
+        CPS.CLitFloat f        -> SLitFloat f
+        CPS.CLitBool b         -> SLitBool b
+        CPS.CLitInt i          -> SLitInt i
+        CPS.CStruct sName vars -> 
+            SStructCtr (TStruct sName) $ varToSSA <$> vars
+        CPS.CTuple vars        -> 
+            SStructCtr (TVector TFloat $ length vars) $ varToSSA <$> vars
     cExprToSSA cexpr
 cExprToSSA (CPS.CLetProj x i tuple cexpr) = do
     output $ SAssign (varToSSA x) (STupleProj i $ varToSSA tuple)
+    cExprToSSA cexpr
+cExprToSSA (CPS.CLetFieldGet x field struct@(CPS.Var _ t) cexpr) = do
+    let (CPS.CTStruct sName) = t
+    fieldDefs <- asks $ (Map.! sName) . _structDefs
+    let i = fromJust (findIndex ((== field) . fst) fieldDefs)
+    output $ SAssign (varToSSA x) (SStructGet i $ varToSSA struct)
     cExprToSSA cexpr
 cExprToSSA (CPS.CLetCont k x c1 c2) = do
     jumps <- gets _untranspiledJumps
@@ -167,6 +190,7 @@ cTypeToSSA ct@(CPS.CTFun _ _) = TFun ret args
         aggregateTypes (CPS.CTFun t1' t2') = first (t1':) (aggregateTypes t2')
         aggregateTypes t = ([], t)
 cTypeToSSA (CPS.CTTuple t i) = TVector (cTypeToSSA t) i
+cTypeToSSA (CPS.CTStruct sName) = TStruct sName
 cTypeToSSA CPS.CTBottom = undefined
 
 varToSSA :: CPS.Var -> Var

@@ -31,6 +31,10 @@ freeVariables' (If c e1 e2) = do
     fv1 <- freeVariables' e1
     fv2 <- freeVariables' e2
     return $ fvc `Set.union` fv1 `Set.union` fv2
+freeVariables' (Cons _ exprs) = do
+    fvs <- mapM freeVariables' exprs
+    return $ foldl1 Set.union fvs
+freeVariables' (FieldGet _ e) = freeVariables' e
 freeVariables' (TupleCons exprs) = do
     fvs <- mapM freeVariables' exprs
     return $ foldl1 Set.union fvs

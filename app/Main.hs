@@ -1,5 +1,6 @@
 module Main where
 
+import Data.Bifunctor (first)
 import System.Environment ( getArgs )
 import System.Exit ( exitFailure, exitSuccess )
 
@@ -7,11 +8,11 @@ import qualified Parser.AbsVinci as Parser (Program)
 import Parser.LexVinci ( Token )
 import Parser.ParVinci ( pProgram, myLexer )
 
-import qualified Core.AST as Core (Prog)
+import qualified Core.CoreManager as CM (CoreManager(..), map)
 import Core.ConstDropping (dropConsts)
 import Core.FrontendToCore (frontendProgramToCore)
 import Core.LambdaLifting (lambdaLiftProgs)
-import Core.TypeChecking (tcProgs)
+import Core.TypeChecking (tcCoreManager)
 import CPS.CoreToCPS (coreToCPS)
 import qualified Frontend.AST as F
 import Frontend.TranspileAST (transpile)
@@ -55,23 +56,23 @@ data OutputType = Frontend | Core | LiftedCore | TCCore | CPS | SSA | SPIRV | Fu
 compilationFunction :: OutputType -> (F.Program -> String)
 compilationFunction outputType = case outputType of
     Frontend   -> show
-    Core       -> show <$> frontendProgramToCore
+    Core       -> show . frontendProgramToCore
     rest       -> typeCheckAndCompile rest . dropConsts . frontendProgramToCore
 
-typeCheckAndCompile :: OutputType -> [Core.Prog Maybe] -> String
-typeCheckAndCompile outputType progs = case tcProgs progs of
+typeCheckAndCompile :: OutputType -> CM.CoreManager Maybe -> String
+typeCheckAndCompile outputType progs = case tcCoreManager progs of
     Left err -> err
     Right typeChecked -> case outputType of
-        TCCore     -> unlines $ show <$> typeChecked
-        LiftedCore -> unlines $ show <$> lambdaLiftProgs typeChecked
-        CPS        -> unlines $ show . coreToCPS <$> lambdaLiftProgs typeChecked
+        TCCore     -> show typeChecked
+        LiftedCore -> show $ CM.map lambdaLiftProgs typeChecked
+        CPS        -> show . coreToCPS $ CM.map lambdaLiftProgs typeChecked
         SSA        -> unlines . (show <$>) . optimizeAndPrepare $
-              cpsToSSA . coreToCPS <$> lambdaLiftProgs typeChecked
-        SPIRV      -> unlines . (show <$>) . uncurry (++) . ssaToSpir . optimizeAndPrepare $ 
-            cpsToSSA . coreToCPS <$> lambdaLiftProgs typeChecked
+              fst . cpsToSSA . coreToCPS $ CM.map lambdaLiftProgs typeChecked
+        SPIRV      -> unlines . (show <$>) . uncurry (++) . ssaToSpir . first optimizeAndPrepare $ 
+            cpsToSSA . coreToCPS $ CM.map lambdaLiftProgs typeChecked
         FullSPIRV  ->
-            let (constsTypes, fnOps) = ssaToSpir . optimizeAndPrepare $ 
-                     cpsToSSA . coreToCPS <$> lambdaLiftProgs typeChecked in
+            let (constsTypes, fnOps) = ssaToSpir . first optimizeAndPrepare $ 
+                     cpsToSSA . coreToCPS $ CM.map lambdaLiftProgs typeChecked in
             compileToDemoSpir constsTypes fnOps
         _ -> "Error?"
 

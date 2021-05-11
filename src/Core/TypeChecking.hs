@@ -1,20 +1,23 @@
 module Core.TypeChecking where
 
 import Core.AST
+import Core.CoreManager (CoreManager(..))
 import Core.Ops
 import LibraryList (coreLibraryList)
-
-import qualified Data.Map as Map
-import Data.Bifunctor (first, second)
+import StructDefMap (StructDefMap)
+import Utils.List ((!!?))
 
 import Control.Monad
 import Control.Monad.Identity
 import Control.Monad.Except
 import Control.Monad.Reader
+import Data.Bifunctor (first, second)
+import Data.List (find)
+import qualified Data.Map as Map
 
 type Err = String
 type TypeEnv = Map.Map String Type
-type TCM = ReaderT TypeEnv (Except Err)
+type TCM = ReaderT (TypeEnv, StructDefMap Type) (Except Err)
 
 type UExpr = Expr Maybe
 type TExpr = Expr Identity
@@ -22,27 +25,35 @@ type TExpr = Expr Identity
 emptyEnv :: TypeEnv
 emptyEnv = coreLibraryList
 
+tcCoreManager :: CoreManager Maybe -> Either Err (CoreManager Identity)
+tcCoreManager cm = do
+    typed <- tcProgsRun (emptyEnv, _structDefs cm) (_progs cm)
+    return $ CoreManager { _progs = typed
+                         , _structDefs = _structDefs cm }
+
 tcProgs :: [Prog Maybe] -> Either Err [Prog Identity]
-tcProgs = run emptyEnv
-    where
-        run :: TypeEnv -> [Prog Maybe] -> Either Err [Prog Identity]
-        run tenv (p:t) = do
-            (p', tProg) <- runExcept $ runReaderT (tcProg' p) tenv
-            let pName = progId p
-                tenv' = Map.insert pName tProg tenv
-            rest <- run tenv' t
-            return (p':rest)
-        run _ [] = return []
+tcProgs = tcProgsRun (emptyEnv, Map.empty)
+
+tcProgsRun :: (TypeEnv, StructDefMap Type) 
+           -> [Prog Maybe] 
+           -> Either Err [Prog Identity]
+tcProgsRun (tenv, structDefs) (p:t) = do
+    (p', tProg) <- runExcept $ runReaderT (tcProg' p) (tenv, structDefs)
+    let pName = progId p
+        tenv' = Map.insert pName tProg tenv
+    rest <- tcProgsRun (tenv', structDefs) t
+    return (p':rest)
+tcProgsRun _ [] = return []
 
 tcProg :: Prog Maybe -> Either Err (Prog Identity)
 tcProg p = second fst run
     where
-        run = runExcept $ runReaderT (tcProg' p) emptyEnv
+        run = runExcept $ runReaderT (tcProg' p) (emptyEnv, Map.empty)
 
 tc :: UExpr -> Either Err TExpr
 tc e = second fst run
     where
-        run = runExcept $ runReaderT (tc' e) emptyEnv
+        run = runExcept $ runReaderT (tc' e) (emptyEnv, Map.empty)
 
 tcProg' :: Prog Maybe -> TCM (Prog Identity, Type)
 tcProg' p@(Prog (VarId fName (Just fType)) args e) = do
@@ -52,20 +63,20 @@ tcProg' p@(Prog (VarId fName (Just fType)) args e) = do
     let typedArgs = first _varName <$> zip args args'
         args''    = uncurry Var' <$> typedArgs
         argMap    = Map.fromList typedArgs
-    (e', t') <- local (Map.union argMap . Map.insert fName fType) (tc' e)
+    (e', t') <- local (first $ Map.union argMap . Map.insert fName fType) (tc' e)
     _ <- checkEqOrThrow (resType fType) t' (" in function " ++ show p)
     return (Prog (Var' fName fType) args'' e', fType)
 tcProg' p = throwError $ "Expected type for function " ++ show (progId p)
 
 tc' :: UExpr -> TCM (TExpr, Type)
-tc' (Var (VarId f t)) = do
-    envT <- asks $ Map.lookup f
+tc' (Var (VarId v t)) = do
+    envT <- asks $ Map.lookup v . fst
     t' <- case (envT, t) of
-        (Just t1, Just t2) -> checkEqOrThrow t1 t2 ("in variable " ++ f)
+        (Just t1, Just t2) -> checkEqOrThrow t1 t2 ("in variable " ++ v)
         (Just t', _) -> return t'
         (_, Just t') -> return t'
-        _ -> throwError $ "Unbound variable: " ++ f
-    return (Var $ Var' f t', t')
+        _ -> throwError $ "Unbound variable: " ++ v
+    return (Var $ Var' v t', t')
 tc' (Lit l) = case l of
     LFloat _ -> return (Lit l, TFloat)
     LBool _  -> return (Lit l, TBool)
@@ -85,6 +96,38 @@ tc' e@(If c e1 e2) = do
     when (tcond /= TBool) $ throwError $ 
         "Expected " ++ show c ++ " to be Boolean, it's a " ++ show tcond ++ " instead"
     return (If c' e1' e2', ret)
+tc' (Cons sName exprs) = do
+    (exprs', ts') <- unzip <$> mapM tc' exprs
+    structTypes <- asks snd
+    fieldDefs <- case Map.lookup sName structTypes of
+        Just fds -> return fds
+        Nothing -> throwError $ "Undefined struct " ++ sName
+    zipWithM_ (\t1 t2 -> checkEqOrThrow t1 t2 $ " in struct " ++ sName) ts' (snd <$> fieldDefs)
+    return (Cons sName exprs', TStruct sName)
+tc' (FieldGet fName expr) = do
+    (expr', t) <- tc' expr
+    case t of
+        TStruct sName -> structGetter sName expr'
+        TTuple _ _ -> tupleIndex >>= \i -> tc' (TupleProj i expr)
+        _ -> throwError $ "Field getter: Expected struct, got " ++ show t ++ " instead"
+    where
+        structGetter :: String -> TExpr -> TCM (TExpr, Type)
+        structGetter sName texpr = do
+            structTypes <- asks snd
+            fieldDefs <- case Map.lookup sName structTypes of
+                Just fds -> return fds
+                Nothing -> throwError $ "Undefined struct " ++ sName
+            (_, fieldType) <- case find ((== fName) . fst) fieldDefs of
+                Just fieldType -> return fieldType
+                Nothing -> throwError $ 
+                    "No field `" ++ fName ++ "` on type `" ++ sName ++ "`"
+            return (FieldGet fName texpr, fieldType)
+        tupleIndex :: TCM Int
+        tupleIndex | fName == "x" || fName == "r" = return 0
+                   | fName == "y" || fName == "g" = return 1
+                   | fName == "z" || fName == "b" = return 2
+                   | fName == "w" || fName == "a" = return 3
+                   | otherwise = throwError $ "Tuple " ++ show expr ++ " has too few fields"
 tc' t@(TupleCons exprs) = do
     (exprs', ts') <- unzip <$> mapM tc' exprs
     let (th:ts) = ts'
@@ -96,18 +139,27 @@ tc' p@(TupleProj i tup) = do
         TTuple t' size -> if i <= size 
             then return (TupleProj i tup', t')
             else throwError $ "Tuple " ++ show tup ++ " has too few fields"
+        TStruct sName -> do
+            structTypes <- asks snd
+            fieldDefs <- case Map.lookup sName structTypes of
+                Just fds -> return fds
+                Nothing -> throwError $ "Undefined struct " ++ sName
+            fieldName <- case fieldDefs !!? i of
+                Just (fieldName, _) -> return fieldName
+                Nothing -> throwError $ "Struct `" ++ sName ++ "` has too few fields"
+            tc' (FieldGet fieldName tup)
         _ -> throwError $ "In " ++ show p ++ " expected tuple, got " ++ show tup
 tc' (Let (VarId x t) e1 e2) = do
     (e1', t1) <- case t of
         Just t' -> do
-            (e1', t1) <- local (Map.insert x t') (tc' e1)
+            (e1', t1) <- local (first $ Map.insert x t') (tc' e1)
             checkEqOrThrowFn t' t1 (\_ _ -> return (e1', t1)) ""
         Nothing -> tc' e1
-    (e2', t2) <- local (Map.insert x t1) (tc' e2)
+    (e2', t2) <- local (first $ Map.insert x t1) (tc' e2)
     return (Let (Var' x t1) e1' e2', t2)
 tc' (LetFun prog e) = do
     (prog', tp) <- tcProg' prog
-    (e', t') <- local (Map.insert (progId prog) tp) (tc' e)
+    (e', t') <- local (first $ Map.insert (progId prog) tp) (tc' e)
     return (LetFun prog' e', t')
 tc' (BinOp op e1 e2) = do
     (e1', t1) <- tc' e1

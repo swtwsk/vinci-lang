@@ -1,25 +1,37 @@
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# LANGUAGE TupleSections #-}
-module CPS.CoreToCPS (coreToCPS) where
+module CPS.CoreToCPS (coreToCPS, coreProgToCPS) where
 
 import Control.Monad.Identity
 import Control.Monad.Reader
+import Data.Bifunctor (second)
+import Data.List (find)
+import Data.Maybe (fromJust)
 import qualified Data.Map as Map
 import Utils.VarSupply (VarSupply, evalVarSupply, nextVar)
 
 import qualified Core.AST as Core
+import Core.CoreManager (CoreManager(..))
 import Core.Ops
 import Core.Utils (aggregateApplications)
 import qualified CPS.AST as CPS
 import ManglingPrefixes (coreToCPSContPrefix, coreToCPSVarPrefix)
+import StructDefMap (StructDefMap)
 
-type TranslateM = VarSupply (String, String)
+type TranslateM = ReaderT (StructDefMap Core.Type) (VarSupply (String, String))
 type CCont = CPS.Var -> TranslateM CPS.CExpr
 
-coreToCPS :: Core.Prog Identity -> CPS.CFunDef
-coreToCPS prog = evalVarSupply (coreToCPS' prog) supp
+coreToCPS :: CoreManager Identity -> ([CPS.CFunDef], StructDefMap CPS.CType)
+coreToCPS cm = (runMonad (mapM coreToCPS' $ _progs cm), cStructDefs)
     where
-        supp = [(coreToCPSContPrefix ++ show x, coreToCPSVarPrefix ++ show x) 
+        runMonad = flip evalVarSupply supp . flip runReaderT (_structDefs cm)
+        cStructDefs = Map.map (second coreTypeTranslation <$>) (_structDefs cm)
+
+coreProgToCPS :: Core.Prog Identity -> CPS.CFunDef
+coreProgToCPS prog = evalVarSupply (runReaderT (coreToCPS' prog) Map.empty) supp
+
+supp :: [(String, String)]        
+supp = [(coreToCPSContPrefix ++ show x, coreToCPSVarPrefix ++ show x) 
                                                         | x <- [(0 :: Int) ..]]
 
 coreToCPS' :: Core.Prog Identity -> TranslateM CPS.CFunDef
@@ -61,8 +73,16 @@ coreExprToCPS (Core.If cond e1 e2) k = do
     kApplied <- k x0'
     let kif z = return $ CPS.CLetCont k0 x0' kApplied (CPS.CLetCont k1 x1' e1' $ CPS.CLetCont k2 x2' e2' (CPS.CIf z k1 k2))
     coreExprToCPS cond kif
-coreExprToCPS (Core.TupleCons exprs) k = 
-    coreTupleTranslation exprs [] k
+coreExprToCPS (Core.Cons sName exprs) k = coreStructTranslation sName exprs k
+coreExprToCPS (Core.FieldGet fName e) k = do
+    (_, x) <- nextVar
+    coreExprToCPS e $ \z@(CPS.Var _ (CPS.CTStruct s)) -> do
+        fieldDefs <- asks (Map.! s)
+        let t = snd $ fromJust (find ((== fName) . fst) fieldDefs)
+            x' = CPS.Var x (coreTypeTranslation t)
+        kApplied <- k x'
+        return $ CPS.CLetFieldGet x' fName z kApplied
+coreExprToCPS (Core.TupleCons exprs) k = coreTupleTranslation exprs k
 coreExprToCPS (Core.TupleProj i e) k = do
     (_, x) <- nextVar
     coreExprToCPS e $ \z@(CPS.Var _ (CPS.CTTuple t _)) -> do
@@ -135,8 +155,17 @@ coreExprToCPSWithCont (Core.If cond e1 e2) k = do
         x2' = CPS.Var x2 CPS.CTBottom
     let kif z = return $ CPS.CLetCont k1 x1' e1' (CPS.CLetCont k2 x2' e2' (CPS.CIf z k1 k2))
     coreExprToCPS cond kif
+coreExprToCPSWithCont (Core.Cons sName exprs) k =
+    coreStructTranslation sName exprs (return . CPS.CAppCont k)
+coreExprToCPSWithCont (Core.FieldGet fName e) k = do
+    (_, x) <- nextVar
+    coreExprToCPS e $ \z@(CPS.Var _ (CPS.CTStruct s)) -> do
+        fieldDefs <- asks (Map.! s)
+        let t = snd $ fromJust (find ((== fName) . fst) fieldDefs)
+            x' = CPS.Var x (coreTypeTranslation t)
+        return $ CPS.CLetFieldGet x' fName z (CPS.CAppCont k x')
 coreExprToCPSWithCont (Core.TupleCons exprs) k = 
-    coreTupleTranslation exprs [] (return . CPS.CAppCont k)
+    coreTupleTranslation exprs (return . CPS.CAppCont k)
 coreExprToCPSWithCont (Core.TupleProj i e) k = do
     (_, x) <- nextVar
     coreExprToCPS e $ \z@(CPS.Var _ (CPS.CTTuple t _)) -> do
@@ -189,15 +218,39 @@ coreExprRec :: CPS.Var -> [Core.Expr Identity] -> [CPS.Var] -> CPS.CVar -> Trans
 coreExprRec fn (h:t) vars kName = coreExprToCPS h (\x -> coreExprRec fn t (x:vars) kName)
 coreExprRec fn [] vars kName    = return $ CPS.CAppFun fn kName (reverse vars)
 
-coreTupleTranslation :: [Core.Expr Identity] -> [CPS.Var] -> CCont -> TranslateM CPS.CExpr
-coreTupleTranslation (h:t) vars kFun = 
-    coreExprToCPS h (\x -> coreTupleTranslation t (x:vars) kFun)
-coreTupleTranslation [] vars kFun = do
-    let varT = CPS.CTTuple (CPS._varType $ head vars) (length vars)
+coreTupleTranslation :: [Core.Expr Identity] -> CCont -> TranslateM CPS.CExpr
+coreTupleTranslation exprs kFun = 
+    coreStructOrTupleTranslation exprs [] kFun typeCtr ctr
+    where
+        typeCtr = \vars -> CPS.CTTuple (CPS._varType $ head vars) (length vars)
+        ctr = CPS.CTuple
+
+coreStructTranslation :: String
+                      -> [Core.Expr Identity]  
+                      -> CCont 
+                      -> TranslateM CPS.CExpr
+coreStructTranslation structName exprs kFun =
+    coreStructOrTupleTranslation exprs [] kFun typeCtr ctr
+    where
+        typeCtr = const (CPS.CTStruct structName)
+        ctr = CPS.CStruct structName
+
+coreStructOrTupleTranslation :: [Core.Expr Identity] 
+                             -> [CPS.Var]
+                             -> CCont
+                             -> ([CPS.Var] -> CPS.CType)
+                             -> ([CPS.Var] -> CPS.CVal)
+                             -> TranslateM CPS.CExpr
+coreStructOrTupleTranslation (h:t) vars kFun typeCtr ctr = 
+    coreExprToCPS h $ 
+        \x -> coreStructOrTupleTranslation t (x:vars) kFun typeCtr ctr
+coreStructOrTupleTranslation [] vars kFun typeCtr ctr = do
     (_, x) <- nextVar
-    let x' = CPS.Var x varT
+    let varT = typeCtr vars
+        x' = CPS.Var x varT
+        val = ctr (reverse vars)
     kApplied <- kFun x'
-    return $ CPS.CLetVal x' (CPS.CTuple (reverse vars)) kApplied
+    return $ CPS.CLetVal x' val kApplied
 
 coreVarTranslation :: Core.VarId Identity -> CPS.Var
 coreVarTranslation (Core.VarId vn (Identity vt)) = 
@@ -210,12 +263,15 @@ coreTypeTranslation Core.TInt = CPS.CTInt
 coreTypeTranslation (Core.TFun t1 t2) = 
     CPS.CTFun (coreTypeTranslation t1) (coreTypeTranslation t2)
 coreTypeTranslation (Core.TTuple t i) = CPS.CTTuple (coreTypeTranslation t) i
+coreTypeTranslation (Core.TStruct sName) = CPS.CTStruct sName
 coreTypeTranslation Core.TDummy = undefined
 
 extractTypeFromCExpr :: CPS.CExpr -> Reader (Map.Map String CPS.CType) CPS.CType
 extractTypeFromCExpr (CPS.CLetVal (CPS.Var x t) _ e) = 
     local (Map.insert x t) (extractTypeFromCExpr e)
 extractTypeFromCExpr (CPS.CLetProj (CPS.Var x t) _ _ e) =
+    local (Map.insert x t) (extractTypeFromCExpr e)
+extractTypeFromCExpr (CPS.CLetFieldGet (CPS.Var x t) _ _ e) =
     local (Map.insert x t) (extractTypeFromCExpr e)
 extractTypeFromCExpr (CPS.CLetCont k (CPS.Var _ t) _e1 e2) = 
     local (Map.insert k t) (extractTypeFromCExpr e2)
