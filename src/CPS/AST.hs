@@ -24,6 +24,7 @@ data CExpr = CLetVal Var CVal CExpr             -- letval x = V in K
 
 data CVal = CLitFloat Double
           | CLitBool Bool
+          | CLitInt Int
           | CTuple [Var]
           deriving Eq
 
@@ -36,6 +37,7 @@ data CFunDef = CFunDef Var CVar [Var] CExpr -- letproc proc k (args*) = E
 
 data CType = CTFloat
            | CTBool
+           | CTInt
            | CTFun CType CType
            | CTTuple CType Int
            | CTBottom            -- meaning applied continuation
@@ -189,6 +191,7 @@ instance Show CExpr where
 instance Show CVal where
     show (CLitFloat f) = show f
     show (CLitBool b) = show b
+    show (CLitInt i) = show i
     show (CTuple vars) = "(" ++ intercalate ", " (show <$> vars) ++ ")"
 
 instance Show CPrimOp where
@@ -203,6 +206,7 @@ instance Show CType where
     show t = case t of
         CTFloat -> "Float"
         CTBool -> "Bool"
+        CTInt -> "Int"
         CTFun t1@CTFun{} t2@CTFun{} -> 
             "(" ++ show t1 ++ ") -> (" ++ show t2 ++ ")"
         CTFun t1 t2@CTFun{} -> show t1 ++ " -> (" ++ show t2 ++ ")"

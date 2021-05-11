@@ -132,8 +132,8 @@ stmtToSpir :: SStmt -> SpirM ()
 stmtToSpir (SAssign (Var var t) expr) = do
     -- var' <- nextVar  CAN BE FORWARD REFERENCED!
     var' <- getRenamedVar var
-    varType <- getTypeId (TPointer StorFunction t)
-    tmp  <- exprToSpir expr
+    varType  <- getTypeId (TPointer StorFunction t)
+    (tmp, _) <- exprToSpir expr
     output $ OpVariable (SpirId var') varType StorFunction
     output $ OpStore (SpirId var') tmp
     insertRenamed var var'
@@ -141,10 +141,10 @@ stmtToSpir (SGoto l) = do
     l' <- getRenamedLabel l
     output $ OpBranch (SpirId l')
 stmtToSpir (SReturn expr) = do
-    tmp <- exprToSpir expr
+    (tmp, _) <- exprToSpir expr
     output $ OpReturnValue tmp
 stmtToSpir (SIf sm expr l1 l2) = do
-    tmp <- exprToSpir expr
+    (tmp, _) <- exprToSpir expr
     l1' <- SpirId <$> getRenamedLabel l1
     l2' <- SpirId <$> getRenamedLabel l2
     output =<< case sm of
@@ -158,13 +158,13 @@ stmtToSpir (SIf sm expr l1 l2) = do
         Nothing -> return $ OpSelectionMerge l2' SelCtrNone
     output $ OpBranchConditional tmp l1' l2'
 
-exprToSpir :: SExpr -> SpirM SpirId
+exprToSpir :: SExpr -> SpirM (SpirId, SpirType)
 exprToSpir (SVar (Var vName t)) = do
     var' <- SpirId <$> getRenamedVar vName
     tmp  <- SpirId <$> nextVar
     varType <- getTypeId t
     output $ OpLoad tmp varType var'
-    return tmp
+    return (tmp, t)
 exprToSpir (SApp (Var fName fType) args) = do
     let (TFun rt _) = fType
     retType <- getTypeId rt
@@ -192,13 +192,14 @@ exprToSpir (SApp (Var fName fType) args) = do
             output $ OpExtInst tmp retType (SpirId "1") fName' (SpirId <$> argTmps)
         Nothing     ->
             output $ OpFunctionCall tmp retType (SpirId fName) args''
-    return tmp
+    return (tmp, rt)
 exprToSpir (STupleCtr vars) = do
     loaded <- forM vars $ \var -> exprToSpir (SVar var)
     tmp <- SpirId <$> nextVar
-    retType <- getTypeId (TVector TFloat $ length vars)
-    output $ OpCompositeConstruct tmp retType loaded
-    return tmp
+    let retType = TVector TFloat $ length vars
+    retTypeId <- getTypeId retType
+    output $ OpCompositeConstruct tmp retTypeId (fst <$> loaded)
+    return (tmp, retType)
 exprToSpir (STupleProj i (Var tuple t)) = do
     vars <- replicateM 3 nextVar
     let [iVar, resVar, tmp] = SpirId <$> vars
@@ -211,43 +212,59 @@ exprToSpir (STupleProj i (Var tuple t)) = do
     output $ OpConstant iVar uintType (SCUnsigned i)
     output $ OpAccessChain resVar ptrVarType tuple' iVar
     output $ OpLoad tmp varType resVar
-    return tmp
+    return (tmp, t')
 exprToSpir (SBinOp op e1 e2) = do
-    t1 <- exprToSpir e1
-    t2 <- exprToSpir e2
+    (t1, et) <- exprToSpir e1
+    (t2, _) <- exprToSpir e2
     v  <- SpirId <$> nextVar
-    floatType <- getTypeId TFloat
-    boolType  <- getTypeId TBool
-    output $ case op of
-        OpAdd -> OpFAdd v floatType t1 t2
-        OpMul -> OpFMul v floatType t1 t2
-        OpSub -> OpFSub v floatType t1 t2
-        OpDiv -> OpFDiv v floatType t1 t2
-        OpMod -> OpFMod v floatType t1 t2
-        OpAnd -> OpLogicalAnd v boolType t1 t2
-        OpOr -> OpLogicalOr v boolType t1 t2
-        OpEq -> OpFOrdEqual v boolType t1 t2
-        OpLT -> OpFOrdLessThan v boolType t1 t2
-    return v
+    eType <- getTypeId et
+    boolType <- getTypeId TBool
+    output $ case (op, et) of
+        (OpAdd, TInt)   -> OpIAdd v eType t1 t2
+        (OpAdd, TFloat) -> OpFAdd v eType t1 t2
+        (OpMul, TInt)   -> OpIMul v eType t1 t2
+        (OpMul, TFloat) -> OpFMul v eType t1 t2
+        (OpSub, TInt)   -> OpISub v eType t1 t2
+        (OpSub, TFloat) -> OpFSub v eType t1 t2
+        (OpDiv, TInt)   -> OpSDiv v eType t1 t2
+        (OpDiv, TFloat) -> OpFDiv v eType t1 t2
+        (OpMod, TInt)   -> OpSMod v eType t1 t2
+        (OpMod, TFloat) -> OpFMod v eType t1 t2
+        (OpEq, TBool)   -> OpLogicalEqual v boolType t1 t2
+        (OpEq, TInt)    -> OpIEqual v boolType t1 t2
+        (OpEq, TFloat)  -> OpFOrdEqual v boolType t1 t2
+        (OpLT, TInt)    -> OpSLessThan v boolType t1 t2
+        (OpLT, TFloat)  -> OpFOrdLessThan v boolType t1 t2
+        (OpAnd, _) -> OpLogicalAnd v boolType t1 t2
+        (OpOr, _)  -> OpLogicalOr v boolType t1 t2
+        _ -> undefined
+    return (v, et)
 exprToSpir (SUnOp op e) = do
-    te <- exprToSpir e
+    (te, t) <- exprToSpir e
     v  <- SpirId <$> nextVar
-    floatType <- getTypeId TFloat
+    numType <- getTypeId t
     boolType  <- getTypeId TBool
-    output $ case op of
-        OpNeg -> OpFNegate v floatType te
-        OpNot -> OpLogicalNot v boolType te
-    return v
+    output $ case (op, t) of
+        (OpNeg, TFloat) -> OpFNegate v numType te
+        (OpNeg, TInt) -> OpSNegate v numType te
+        (OpNot, _) -> OpLogicalNot v boolType te
+        _ -> undefined
+    return (v, t)
 exprToSpir (SLitFloat f) = do
     v <- SpirId <$> nextVar
     floatType <- getTypeId TFloat
     output $ OpConstant v floatType (SCFloat f)
-    return v
+    return (v, TFloat)
 exprToSpir (SLitBool b) = do
     v <- SpirId <$> nextVar
     floatType <- getTypeId TBool
     output $ OpConstant v floatType (SCBool b)
-    return v
+    return (v, TBool)
+exprToSpir (SLitInt i) = do
+    v <- SpirId <$> nextVar
+    intType <- getTypeId TInt
+    output $ OpConstant v intType (SCSigned i)
+    return (v, TInt)
 
 insertRenamed :: String -> String -> SpirM ()
 insertRenamed var renamedVar = do

@@ -49,6 +49,7 @@ bindToProg cb@F.ConstBind {} = do
 exprToCore :: F.Expr -> SuppM (Expr Maybe)
 exprToCore (F.EId var) = return $ Var (VarId var Nothing)
 exprToCore (F.EFloat f) = return . Lit $ LFloat f
+exprToCore (F.EInt i) = return . Lit $ LInt (fromInteger i)
 exprToCore  F.ETrue = return . Lit $ LBool True
 exprToCore  F.EFalse = return . Lit $ LBool False
 exprToCore (F.EApp e1 e2) = App <$> exprToCore e1 <*> exprToCore e2
@@ -90,7 +91,6 @@ exprToCore (F.ETuple exprs) = do
             (args'', e''') <- extractProgArgs args' e''
             return (Prog tmp args'' e''':fns, Var tmp:exs)
         foldFn e (fns, exs) = exprToCore e <&> \x -> (fns, x:exs)
-exprToCore (F.EInt _i) = undefined
 exprToCore (F.EFieldGet _expr _field) = undefined
 exprToCore (F.ECons _name _fields) = undefined
 
@@ -177,7 +177,7 @@ binOpToCore :: BinOp -> F.Expr -> F.Expr -> SuppM (Expr Maybe)
 binOpToCore op e1 e2 = BinOp op <$> exprToCore e1 <*> exprToCore e2
 
 typeToCore :: F.Type -> Type
-typeToCore F.TInt = undefined
+typeToCore F.TInt = TInt
 typeToCore F.TFloat = TFloat
 typeToCore F.TBool = TBool
 typeToCore (F.TStruct structName) = case structName of

@@ -22,14 +22,23 @@ data SpirOp = OpFunction SpirId SpirId SpirFunctionControl SpirId
             | OpFunctionCall SpirId SpirId SpirId [SpirId]
             | OpExtInst SpirId SpirId SpirId String [SpirId]
             | OpConstant SpirId SpirId SpirConst
+            | OpSNegate SpirId SpirId SpirId
             | OpFNegate SpirId SpirId SpirId
+            | OpIAdd SpirId SpirId SpirId SpirId
             | OpFAdd SpirId SpirId SpirId SpirId
+            | OpISub SpirId SpirId SpirId SpirId
             | OpFSub SpirId SpirId SpirId SpirId
+            | OpIMul SpirId SpirId SpirId SpirId
             | OpFMul SpirId SpirId SpirId SpirId
+            | OpSDiv SpirId SpirId SpirId SpirId
             | OpFDiv SpirId SpirId SpirId SpirId
+            | OpSMod SpirId SpirId SpirId SpirId
             | OpFMod SpirId SpirId SpirId SpirId
+            | OpIEqual SpirId SpirId SpirId SpirId
             | OpFOrdEqual SpirId SpirId SpirId SpirId
+            | OpSLessThan SpirId SpirId SpirId SpirId
             | OpFOrdLessThan SpirId SpirId SpirId SpirId
+            | OpLogicalEqual SpirId SpirId SpirId SpirId
             | OpLogicalOr SpirId SpirId SpirId SpirId
             | OpLogicalAnd SpirId SpirId SpirId SpirId
             | OpLogicalNot SpirId SpirId SpirId
@@ -45,6 +54,7 @@ data SpirOp = OpFunction SpirId SpirId SpirFunctionControl SpirId
 
 data SpirConst = SCFloat Double
                | SCBool Bool
+               | SCSigned Int
                | SCUnsigned Int
                deriving Eq
 
@@ -98,16 +108,27 @@ instance Show SpirOp where
         (if not (null args) then " " else "") ++ unwords (show <$> args)
     show (OpConstant res resType c) = 
         show res ++ " = OpConstant " ++ show resType ++ " " ++ show c
+    show (OpSNegate res resT x) = showOpWithResult res "OpSNegate" [resT, x]
     show (OpFNegate res resT x) = showOpWithResult res "OpFNegate" [resT, x]
+    show (OpIAdd res resT a b) = showOpWithResult res "OpIAdd" [resT, a, b]
     show (OpFAdd res resT a b) = showOpWithResult res "OpFAdd" [resT, a, b]
+    show (OpISub res resT a b) = showOpWithResult res "OpISub" [resT, a, b]
     show (OpFSub res resT a b) = showOpWithResult res "OpFSub" [resT, a, b]
+    show (OpIMul res resT a b) = showOpWithResult res "OpIMul" [resT, a, b]
     show (OpFMul res resT a b) = showOpWithResult res "OpFMul" [resT, a, b]
+    show (OpSDiv res resT a b) = showOpWithResult res "OpSDiv" [resT, a, b]
     show (OpFDiv res resT a b) = showOpWithResult res "OpFDiv" [resT, a, b]
+    show (OpSMod res resT a b) = showOpWithResult res "OpSMod" [resT, a, b]
     show (OpFMod res resT a b) = showOpWithResult res "OpFMod" [resT, a, b]
+    show (OpIEqual res resT a b) = showOpWithResult res "OpIEqual" [resT, a, b]
     show (OpFOrdEqual res resT a b) = 
         showOpWithResult res "OpFOrdEqual" [resT, a, b]
+    show (OpSLessThan res resT a b) =
+        showOpWithResult res "OpSLessThan" [resT, a, b]
     show (OpFOrdLessThan res resT a b) = 
         showOpWithResult res "OpFOrdLessThan" [resT, a, b]
+    show (OpLogicalEqual res resT a b) = 
+        showOpWithResult res "OpLogicalEqual" [resT, a, b]
     show (OpLogicalOr res resT a b) = 
         showOpWithResult res "OpLogicalOr" [resT, a, b]
     show (OpLogicalAnd res resT a b) = 
@@ -142,6 +163,7 @@ instance Show SpirFunctionControl where
 instance Show SpirConst where
     show (SCFloat f) = show f
     show (SCBool b)  = show b
+    show (SCSigned i) = show i
     show (SCUnsigned ui) = show ui
 
 instance Show SpirStorageClass where

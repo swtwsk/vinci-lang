@@ -2,9 +2,9 @@
 {-# LANGUAGE FlexibleInstances #-}
 module Core.AST where
 
+import Control.Monad.Identity (Identity(Identity))
 import Data.List (intercalate)
 
-import Control.Monad.Identity
 import Core.Ops (BinOp(..), UnOp(..))
 
 type VarName = String
@@ -34,7 +34,8 @@ data Expr f = Var (VarId f)
             deriving (Eq, Ord)
 
 data Lit = LFloat Double
-         | LBool Bool -- later LInt
+         | LBool Bool
+         | LInt Int
          deriving (Eq, Ord)
 
 data Type = TFloat
@@ -42,8 +43,8 @@ data Type = TFloat
           | TFun Type Type
           | TTuple Type Int
           | TDummy
+          | TInt
         --   | TVar String
-        --   | TInt
           deriving (Eq, Ord)
 
 varId :: VarName -> Type -> VarId Identity
@@ -111,10 +112,11 @@ instance Show Lit where
     show lit = case lit of
         LFloat f -> show f
         LBool b  -> show b
+        LInt i   -> show i
 
 instance Show Type where
     show t = case t of
-        -- TInt -> "Int"
+        TInt -> "Int"
         TBool -> "Bool"
         TFloat -> "Float"
         -- TVar s -> s

@@ -31,6 +31,7 @@ data SExpr = SVar Var
            | SUnOp UnOp SExpr
            | SLitFloat Double
            | SLitBool Bool
+           | SLitInt Int
            deriving Eq
 
 data SStructuredMerge = SLoopMerge SLabel SLabel 
@@ -98,4 +99,5 @@ instance Show SExpr where
     show (SBinOp op e1 e2) = show e1 ++ " " ++ show op ++ " " ++ show e2
     show (SUnOp op e) = show op ++ " " ++ show e
     show (SLitFloat f) = show f
-    show (SLitBool b) = show b
+    show (SLitBool b)  = show b
+    show (SLitInt i)   = show i

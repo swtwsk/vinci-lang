@@ -74,6 +74,7 @@ coreExprToCPS (Core.Lit l) k = do
     let (val, t) = case l of
             Core.LFloat f -> (CPS.CLitFloat f, CPS.CTFloat)
             Core.LBool b  -> (CPS.CLitBool b, CPS.CTBool)
+            Core.LInt i   -> (CPS.CLitInt i, CPS.CTInt)
     let x' = CPS.Var xName t
     kApplied <- k x'
     return $ CPS.CLetVal x' val kApplied
@@ -146,6 +147,7 @@ coreExprToCPSWithCont (Core.Lit l) k = do
     let (val, t) = case l of
             Core.LFloat f -> (CPS.CLitFloat f, CPS.CTFloat)
             Core.LBool b  -> (CPS.CLitBool b, CPS.CTBool)
+            Core.LInt i   -> (CPS.CLitInt i, CPS.CTInt)
     let x' = CPS.Var xName t
     return $ CPS.CLetVal x' val (CPS.CAppCont k x')
 coreExprToCPSWithCont (Core.LetFun (Core.Prog (Core.VarId f t) args e1) e2) k = do
@@ -204,6 +206,7 @@ coreVarTranslation (Core.VarId vn (Identity vt)) =
 coreTypeTranslation :: Core.Type -> CPS.CType
 coreTypeTranslation Core.TFloat = CPS.CTFloat
 coreTypeTranslation Core.TBool = CPS.CTBool
+coreTypeTranslation Core.TInt = CPS.CTInt
 coreTypeTranslation (Core.TFun t1 t2) = 
     CPS.CTFun (coreTypeTranslation t1) (coreTypeTranslation t2)
 coreTypeTranslation (Core.TTuple t i) = CPS.CTTuple (coreTypeTranslation t) i

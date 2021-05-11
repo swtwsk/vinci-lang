@@ -47,14 +47,12 @@ cpsToSSA (CPS.CFunDef (CPS.Var fName t) k args expr) =
         labelled' = updatePhiNodes labelled endState
 
 cExprToSSA :: CPS.CExpr -> TranspileT ()
-cExprToSSA (CPS.CLetVal x (CPS.CLitFloat f) cexpr) = do
-    output $ SAssign (varToSSA x) (SLitFloat f)
-    cExprToSSA cexpr
-cExprToSSA (CPS.CLetVal x (CPS.CLitBool b) cexpr) = do
-    output $ SAssign (varToSSA x) (SLitBool b)
-    cExprToSSA cexpr
-cExprToSSA (CPS.CLetVal x (CPS.CTuple vars) cexpr) = do
-    output $ SAssign (varToSSA x) (STupleCtr $ varToSSA <$> vars)
+cExprToSSA (CPS.CLetVal x val cexpr) = do
+    output . SAssign (varToSSA x) $ case val of
+        CPS.CLitFloat f -> SLitFloat f
+        CPS.CLitBool b  -> SLitBool b
+        CPS.CLitInt i   -> SLitInt i
+        CPS.CTuple vars -> STupleCtr $ varToSSA <$> vars
     cExprToSSA cexpr
 cExprToSSA (CPS.CLetProj x i tuple cexpr) = do
     output $ SAssign (varToSSA x) (STupleProj i $ varToSSA tuple)
@@ -162,6 +160,7 @@ updatePhi destLabel phiVars phiMap =
 cTypeToSSA :: CPS.CType -> SpirType
 cTypeToSSA CPS.CTFloat = TFloat
 cTypeToSSA CPS.CTBool = TBool
+cTypeToSSA CPS.CTInt = TInt
 cTypeToSSA ct@(CPS.CTFun _ _) = TFun ret args
     where
         (args, ret) = bimap (cTypeToSSA <$>) cTypeToSSA $ aggregateTypes ct

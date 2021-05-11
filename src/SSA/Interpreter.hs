@@ -19,6 +19,7 @@ type SSAM = ReaderT FunctionsMap (StateT StateEnv (Except Err))
 
 data Value = VFloat Double
            | VBool Bool
+           | VInt Int
            | VTuple [Value]
            deriving Eq
 
@@ -124,8 +125,10 @@ runExpr (SUnOp op e) = do
         _ -> throwError $ "Cannot do " ++ show op ++ " on " ++ show e'
 runExpr (SLitFloat f) = return $ VFloat f
 runExpr (SLitBool b) = return $ VBool b
+runExpr (SLitInt i) = return $ VInt i
 
 instance Show Value where
     show (VFloat f) = show f
     show (VBool b)  = show b
+    show (VInt i)   = show i
     show (VTuple vals) = "(" ++ intercalate ", " (show <$> vals) ++ ")"

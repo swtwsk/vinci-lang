@@ -14,6 +14,7 @@ type EvalM = ReaderT Env (Except Err)
 
 data Value = VFloat Double
            | VBool Bool
+           | VInt Int
            | VTuple [Value]
            | VClosure String [String] (Expr Maybe) Env
            deriving (Eq)
@@ -36,6 +37,7 @@ eval' (Var (VarId var _)) = do
 eval' (Lit l) = case l of
     LFloat f -> return $ VFloat f
     LBool b -> return $ VBool b
+    LInt i -> return $ VInt i
 eval' (App e1 e2) = do
     e1' <- eval' e1
     e2' <- eval' e2
@@ -96,5 +98,6 @@ apply e1 e2 = throwError $ "Cannot apply " ++ show e1 ++ " to " ++ show e2
 instance Show Value where
     show (VFloat f)  = show f
     show (VBool b)   = show b
+    show (VInt i)    = show i
     show (VTuple vs) = "(" ++ intercalate "," (show <$> vs) ++ ")"
     show VClosure {} = "<fun>"

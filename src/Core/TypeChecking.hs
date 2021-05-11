@@ -68,7 +68,8 @@ tc' (Var (VarId f t)) = do
     return (Var $ Var' f t', t')
 tc' (Lit l) = case l of
     LFloat _ -> return (Lit l, TFloat)
-    LBool _ -> return (Lit l, TBool)
+    LBool _  -> return (Lit l, TBool)
+    LInt _   -> return (Lit l, TInt)
 tc' a@(App e1 e2) = do
     (e1', t1) <- tc' e1
     (e2', t2) <- tc' e2
@@ -113,15 +114,15 @@ tc' (BinOp op e1 e2) = do
     (e2', t2) <- tc' e2
     checkEqOrThrow t1 t2 "" >>= \t -> case t of
         TFloat -> checkNumBinOp op e1' e2' t
-        -- TInt -> checkNumBinOp op e1' e2' t
+        TInt -> checkNumBinOp op e1' e2' t
         TBool -> checkBoolBinOp op e1' e2'
-        _ -> throwError $ "Cannot apply binary operation on expressions of type"
+        _ -> throwError $ "Cannot apply binary operation on expressions of type "
                 ++ show t
 tc' (UnOp op e) = do
     (e', t) <- tc' e
     case (op, t) of
         (OpNeg, TFloat) -> return (UnOp op e', t)
-        -- (OpNeg, TInt) -> return (UnOp op e', t)
+        (OpNeg, TInt) -> return (UnOp op e', t)
         (OpNeg, _) -> throwError $ "Expected number, got " ++ show t ++ " instead"
         (OpNot, TBool)  -> return (UnOp op e', t)
         (OpNot, _) -> throwError $ "Expected Boolean, got " ++ show t ++ " instead"
