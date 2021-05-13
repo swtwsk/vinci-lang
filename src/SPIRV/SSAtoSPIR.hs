@@ -310,10 +310,14 @@ toLabel = (ssaToSpirLabelPrefix ++)
 -- the State pass). Now "new" getTypeId puts types into the typeMap recursively
 -- to ensure that all "composite" types are already in the map
 getTypeId :: SpirType -> SpirM SpirId
-getTypeId t@(TVector inner _) = getTypeId' inner >> getTypeId' t
-getTypeId t@(TPointer _ inner) = getTypeId' inner >> getTypeId' t
+getTypeId t@(TVector inner _) = getTypeId inner >> getTypeId' t
+getTypeId t@(TPointer _ inner) = getTypeId inner >> getTypeId' t
 getTypeId t@(TFun ret args) =
-    getTypeId' ret >> mapM_ getTypeId' args >> getTypeId' t
+    getTypeId ret >> mapM_ getTypeId args >> getTypeId' t
+getTypeId t@(TStruct sName) = do
+    fieldDefs <- asks (Map.! sName)
+    mapM_ getTypeId (snd <$> fieldDefs)
+    getTypeId' t
 getTypeId t = getTypeId' t
 
 getTypeId' :: SpirType -> SpirM SpirId
