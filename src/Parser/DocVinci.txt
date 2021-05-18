@@ -25,6 +25,7 @@ Integer literals //Integer// are nonempty sequences of digits.
 
 
 
+
 VIdent literals are recognized by the regular expression
 `````lower ('_' | digit | letter)*`````
 
@@ -33,6 +34,9 @@ SIdent literals are recognized by the regular expression
 
 TPolyIdent literals are recognized by the regular expression
 `````''' lower+`````
+
+AttrString literals are recognized by the regular expression
+`````'[' (char - ["[]"])* ']'`````
 
 
 ===Reserved words and symbols===
@@ -51,7 +55,7 @@ The symbols used in Vinci are the following:
   | < | <= | > | >=
   | == | != | && | ||
   | \ | -> | { | }
-  | _ |  |  |
+  | _ | @ |  |
 
 ===Comments===
 Single-line comments begin with #.There are no multiple-line comments in the grammar.
@@ -126,7 +130,7 @@ All other symbols are terminals.
   |  |  **|**  | //FieldDef// ``,`` //[FieldDef]//
   | //ProcName// | -> | //VIdent//
   | //StructDef// | -> | ``struct`` //SIdent// //[TPolyIdent]// ``{`` //[FieldDecl]// ``}``
-  | //FieldDecl// | -> | //VIdent// ``:`` //Type//
+  | //FieldDecl// | -> | //Attr// //VIdent// ``:`` //Type//
   | //[FieldDecl]// | -> | //FieldDecl//
   |  |  **|**  | //FieldDecl// ``,`` //[FieldDecl]//
   | //[TPolyIdent]// | -> | **eps**
@@ -141,5 +145,7 @@ All other symbols are terminals.
   |  |  **|**  | //Type1//
   | //RType// | -> | **eps**
   |  |  **|**  | ``->`` //Type//
+  | //Attr// | -> | **eps**
+  |  |  **|**  | ``@`` //AttrString//
 
 

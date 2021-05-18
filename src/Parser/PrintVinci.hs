@@ -118,6 +118,9 @@ instance Print Parser.AbsVinci.TPolyIdent where
   prtList _ [] = concatD []
   prtList _ (x:xs) = concatD [prt 0 x, prt 0 xs]
 
+instance Print Parser.AbsVinci.AttrString where
+  prt _ (Parser.AbsVinci.AttrString i) = doc $ showString i
+
 instance Print (Parser.AbsVinci.Program a) where
   prt i = \case
     Parser.AbsVinci.Prog _ phrases -> prPrec i 0 (concatD [prt 0 phrases])
@@ -224,7 +227,7 @@ instance Print (Parser.AbsVinci.StructDef a) where
 
 instance Print (Parser.AbsVinci.FieldDecl a) where
   prt i = \case
-    Parser.AbsVinci.FieldDecl _ vident type_ -> prPrec i 0 (concatD [prt 0 vident, doc (showString ":"), prt 0 type_])
+    Parser.AbsVinci.FieldDecl _ attr vident type_ -> prPrec i 0 (concatD [prt 0 attr, prt 0 vident, doc (showString ":"), prt 0 type_])
   prtList _ [x] = concatD [prt 0 x]
   prtList _ (x:xs) = concatD [prt 0 x, doc (showString ","), prt 0 xs]
 
@@ -247,4 +250,9 @@ instance Print (Parser.AbsVinci.RType a) where
   prt i = \case
     Parser.AbsVinci.NoRetType _ -> prPrec i 0 (concatD [])
     Parser.AbsVinci.RetType _ type_ -> prPrec i 0 (concatD [doc (showString "->"), prt 0 type_])
+
+instance Print (Parser.AbsVinci.Attr a) where
+  prt i = \case
+    Parser.AbsVinci.NoAttr _ -> prPrec i 0 (concatD [])
+    Parser.AbsVinci.Attr _ attrstring -> prPrec i 0 (concatD [doc (showString "@"), prt 0 attrstring])
 

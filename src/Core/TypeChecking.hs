@@ -6,6 +6,7 @@ import Core.Ops
 import LibraryList (coreLibraryList)
 import StructDefMap (StructDefMap)
 import Utils.List ((!!?))
+import Utils.Tuple
 
 import Control.Monad
 import Control.Monad.Identity
@@ -102,7 +103,7 @@ tc' (Cons sName exprs) = do
     fieldDefs <- case Map.lookup sName structTypes of
         Just fds -> return fds
         Nothing -> throwError $ "Undefined struct " ++ sName
-    zipWithM_ (\t1 t2 -> checkEqOrThrow t1 t2 $ " in struct " ++ sName) ts' (snd <$> fieldDefs)
+    zipWithM_ (\t1 t2 -> checkEqOrThrow t1 t2 $ " in struct " ++ sName) ts' (trdTriple <$> fieldDefs)
     return (Cons sName exprs', TStruct sName)
 tc' (FieldGet fName expr) = do
     (expr', t) <- tc' expr
@@ -117,7 +118,7 @@ tc' (FieldGet fName expr) = do
             fieldDefs <- case Map.lookup sName structTypes of
                 Just fds -> return fds
                 Nothing -> throwError $ "Undefined struct " ++ sName
-            (_, fieldType) <- case find ((== fName) . fst) fieldDefs of
+            (_, _, fieldType) <- case find ((== fName) . fstTriple) fieldDefs of
                 Just fieldType -> return fieldType
                 Nothing -> throwError $ 
                     "No field `" ++ fName ++ "` on type `" ++ sName ++ "`"
@@ -145,7 +146,7 @@ tc' p@(TupleProj i tup) = do
                 Just fds -> return fds
                 Nothing -> throwError $ "Undefined struct " ++ sName
             fieldName <- case fieldDefs !!? i of
-                Just (fieldName, _) -> return fieldName
+                Just (fieldName, _, _) -> return fieldName
                 Nothing -> throwError $ "Struct `" ++ sName ++ "` has too few fields"
             tc' (FieldGet fieldName tup)
         _ -> throwError $ "In " ++ show p ++ " expected tuple, got " ++ show tup

@@ -6,6 +6,7 @@ import Test.Tasty.HUnit
 import qualified Parser.AbsVinci as Abs
 import Parser.ParVinci (myLexer, pProgram)
 
+import Attribute (Attribute(..))
 import Frontend.AST
 import Frontend.TranspileAST (transpile)
 
@@ -103,7 +104,9 @@ tupleTests = testGroup "Tuple"
 structTests :: TestTree
 structTests = testGroup "Struct"
     [ testCase "Struct declaration" $ assertProgram declareLine declareAbsLine
-    , testCase "Transpiled Struct declaration" $ assertTranspiledProgram declareLine declareASTLine 
+    , testCase "Transpiled Struct declaration" $ assertTranspiledProgram declareLine declareASTLine
+    , testCase "Struct with attribute declaration" $ assertProgram declareLocation declareAbsLocation 
+    , testCase "Transpiled Struct with attribute declaration" $ assertTranspiledProgram declareLocation declareASTLocation 
     , testCase "Named constructor" $ assertProgram constructLine constructAbsLine
     , testCase "Transpiled named constructor" $ assertTranspiledProgram constructLine constructASTLine
     , testCase "Function returning an unnamed constructor" $ assertProgram returnLine returnAbsLine
@@ -112,8 +115,11 @@ structTests = testGroup "Struct"
     , testCase "Transpiled get field" $ assertTranspiledProgram fieldGetLine fieldGetASTLine ]
     where
         declareLine = "struct MyStruct \'a {\n field1 : Int , field2 : Float, field3 : \'a, field4 : MyStruct2 };;"
-        declareAbsLine = Abs.Prog Nothing [Abs.StructDecl Nothing (Abs.SDef Nothing (Abs.SIdent "MyStruct") [Abs.TPolyIdent "\'a"] [Abs.FieldDecl Nothing (Abs.VIdent "field1") (Abs.TInt Nothing), Abs.FieldDecl Nothing (Abs.VIdent "field2") (Abs.TFloat Nothing), Abs.FieldDecl Nothing (Abs.VIdent "field3") (Abs.TPoly Nothing (Abs.TPolyIdent "\'a")), Abs.FieldDecl Nothing (Abs.VIdent "field4") (Abs.TStruct Nothing (Abs.SIdent "MyStruct2"))])]
-        declareASTLine = Prog [StructDecl (SDef "MyStruct" ["\'a"] [FieldDecl "field1" TInt, FieldDecl "field2" TFloat, FieldDecl "field3" (TPoly "\'a"), FieldDecl "field4" (TStruct "MyStruct2")])]
+        declareAbsLine = Abs.Prog Nothing [Abs.StructDecl Nothing (Abs.SDef Nothing (Abs.SIdent "MyStruct") [Abs.TPolyIdent "\'a"] [Abs.FieldDecl Nothing (Abs.NoAttr Nothing) (Abs.VIdent "field1") (Abs.TInt Nothing), Abs.FieldDecl Nothing (Abs.NoAttr Nothing) (Abs.VIdent "field2") (Abs.TFloat Nothing), Abs.FieldDecl Nothing (Abs.NoAttr Nothing) (Abs.VIdent "field3") (Abs.TPoly Nothing (Abs.TPolyIdent "\'a")), Abs.FieldDecl Nothing (Abs.NoAttr Nothing) (Abs.VIdent "field4") (Abs.TStruct Nothing (Abs.SIdent "MyStruct2"))])]
+        declareASTLine = Prog [StructDecl (SDef "MyStruct" ["\'a"] [FieldDecl "field1" TInt Nothing, FieldDecl "field2" TFloat Nothing, FieldDecl "field3" (TPoly "\'a") Nothing, FieldDecl "field4" (TStruct "MyStruct2") Nothing])]
+        declareLocation = "struct MyStruct {\n @[location = 0] x : Float, @[ binding   =1] y : Float, z : Float \n}\n;;"
+        declareAbsLocation = Abs.Prog Nothing [Abs.StructDecl Nothing (Abs.SDef Nothing (Abs.SIdent "MyStruct") [] [Abs.FieldDecl Nothing (Abs.Attr Nothing $ Abs.AttrString "[location = 0]") (Abs.VIdent "x") (Abs.TFloat Nothing), Abs.FieldDecl Nothing (Abs.Attr Nothing $ Abs.AttrString "[ binding   =1]") (Abs.VIdent "y") (Abs.TFloat Nothing), Abs.FieldDecl Nothing (Abs.NoAttr Nothing) (Abs.VIdent "z") (Abs.TFloat Nothing)])]
+        declareASTLocation = Prog [StructDecl $ SDef "MyStruct" [] [FieldDecl "x" TFloat (Just $ Location 0), FieldDecl "y" TFloat (Just $ Binding 1), FieldDecl "z" TFloat Nothing]]
         constructLine = "let res = MyStruct { field1 = True, outs=(a, b, 0.123)\n};;"
         constructAbsLine = Abs.Prog Nothing [Abs.Value Nothing (Abs.Let Nothing [Abs.ConstBind Nothing (Abs.LetLVI Nothing (Abs.LambdaVId Nothing (Abs.VIdent "res"))) (Abs.ECons Nothing (Abs.SIdent "MyStruct") [Abs.FieldDef Nothing (Abs.VIdent "field1") (Abs.ETrue Nothing), Abs.FieldDef Nothing (Abs.VIdent "outs") (Abs.ETuple Nothing (Abs.EId Nothing (Abs.VIdent "a")) [Abs.EId Nothing (Abs.VIdent "b"), Abs.EFloat Nothing 0.123])])])]
         constructASTLine = Prog [Value (Let [ConstBind (LambdaVId "res") (ECons "MyStruct" [FieldDef "field1" ETrue, FieldDef "outs" (ETuple [EId "a", EId "b", EFloat 0.123])])])]
@@ -130,8 +136,8 @@ programTests = testGroup "Program"
     , testCase "Transpiled program" $ assertTranspiledProgram program programAST ]
     where
         program = "let x = 0.42;;\n\nstruct Maybe \'a {\n  value: \'a,\n  flag : Bool\n};;\n\nlet frag (fragColor, fragTexCoord) (_ : Uniforms) =\n  let color = (fragColor.x, fragColor.y, x)\n  in (color, 1.0);;"
-        programAbs = Abs.Prog Nothing [Abs.Value Nothing (Abs.Let Nothing [Abs.ConstBind Nothing (Abs.LetLVI Nothing (Abs.LambdaVId Nothing (Abs.VIdent "x"))) (Abs.EFloat Nothing 0.42)]), Abs.StructDecl Nothing (Abs.SDef Nothing (Abs.SIdent "Maybe") [Abs.TPolyIdent "\'a"] [Abs.FieldDecl Nothing (Abs.VIdent "value") (Abs.TPoly Nothing (Abs.TPolyIdent "\'a")), Abs.FieldDecl Nothing (Abs.VIdent "flag") (Abs.TBool Nothing)]), Abs.Value Nothing (Abs.Let Nothing [Abs.ProcBind Nothing (Abs.ProcNameId Nothing (Abs.VIdent "frag")) [Abs.LetLVI Nothing (Abs.TupleVId Nothing [Abs.LambdaVId Nothing (Abs.VIdent "fragColor"), Abs.LambdaVId Nothing (Abs.VIdent "fragTexCoord")]), Abs.LetLVI Nothing (Abs.TypedVId Nothing (Abs.WildVId Nothing) (Abs.TStruct Nothing (Abs.SIdent "Uniforms")))] (Abs.NoRetType Nothing) (Abs.ELetIn Nothing (Abs.Let Nothing [Abs.ConstBind Nothing (Abs.LetLVI Nothing (Abs.LambdaVId Nothing (Abs.VIdent "color"))) (Abs.ETuple Nothing (Abs.EFieldGet Nothing (Abs.EId Nothing (Abs.VIdent "fragColor")) (Abs.VIdent "x")) [Abs.EFieldGet Nothing (Abs.EId Nothing (Abs.VIdent "fragColor")) (Abs.VIdent "y"), Abs.EId Nothing (Abs.VIdent "x")])]) (Abs.ETuple Nothing (Abs.EId Nothing (Abs.VIdent "color")) [Abs.EFloat Nothing 1.0]))])]
-        programAST = Prog [Value $ Let [ConstBind (LambdaVId "x") (EFloat 0.42)], StructDecl $ SDef "Maybe" ["\'a"] [FieldDecl "value" (TPoly "\'a"), FieldDecl "flag" TBool], Value $ Let [ProcBind "frag" [TupleVId [LambdaVId "fragColor", LambdaVId "fragTexCoord"], TypedVId WildVId (TStruct "Uniforms")] Nothing (ELetIn (Let [ConstBind (LambdaVId "color") (ETuple [EFieldGet (EId "fragColor") "x", EFieldGet (EId "fragColor") "y", EId "x"])]) (ETuple [EId "color", EFloat 1.0]))]]
+        programAbs = Abs.Prog Nothing [Abs.Value Nothing (Abs.Let Nothing [Abs.ConstBind Nothing (Abs.LetLVI Nothing (Abs.LambdaVId Nothing (Abs.VIdent "x"))) (Abs.EFloat Nothing 0.42)]), Abs.StructDecl Nothing (Abs.SDef Nothing (Abs.SIdent "Maybe") [Abs.TPolyIdent "\'a"] [Abs.FieldDecl Nothing (Abs.NoAttr Nothing) (Abs.VIdent "value") (Abs.TPoly Nothing (Abs.TPolyIdent "\'a")), Abs.FieldDecl Nothing (Abs.NoAttr Nothing) (Abs.VIdent "flag") (Abs.TBool Nothing)]), Abs.Value Nothing (Abs.Let Nothing [Abs.ProcBind Nothing (Abs.ProcNameId Nothing (Abs.VIdent "frag")) [Abs.LetLVI Nothing (Abs.TupleVId Nothing [Abs.LambdaVId Nothing (Abs.VIdent "fragColor"), Abs.LambdaVId Nothing (Abs.VIdent "fragTexCoord")]), Abs.LetLVI Nothing (Abs.TypedVId Nothing (Abs.WildVId Nothing) (Abs.TStruct Nothing (Abs.SIdent "Uniforms")))] (Abs.NoRetType Nothing) (Abs.ELetIn Nothing (Abs.Let Nothing [Abs.ConstBind Nothing (Abs.LetLVI Nothing (Abs.LambdaVId Nothing (Abs.VIdent "color"))) (Abs.ETuple Nothing (Abs.EFieldGet Nothing (Abs.EId Nothing (Abs.VIdent "fragColor")) (Abs.VIdent "x")) [Abs.EFieldGet Nothing (Abs.EId Nothing (Abs.VIdent "fragColor")) (Abs.VIdent "y"), Abs.EId Nothing (Abs.VIdent "x")])]) (Abs.ETuple Nothing (Abs.EId Nothing (Abs.VIdent "color")) [Abs.EFloat Nothing 1.0]))])]
+        programAST = Prog [Value $ Let [ConstBind (LambdaVId "x") (EFloat 0.42)], StructDecl $ SDef "Maybe" ["\'a"] [FieldDecl "value" (TPoly "\'a") Nothing, FieldDecl "flag" TBool Nothing], Value $ Let [ProcBind "frag" [TupleVId [LambdaVId "fragColor", LambdaVId "fragTexCoord"], TypedVId WildVId (TStruct "Uniforms")] Nothing (ELetIn (Let [ConstBind (LambdaVId "color") (ETuple [EFieldGet (EId "fragColor") "x", EFieldGet (EId "fragColor") "y", EId "x"])]) (ETuple [EId "color", EFloat 1.0]))]]
 
 lexProgram :: String -> Err (Abs.Program MaybePos)
 lexProgram = pProgram . myLexer

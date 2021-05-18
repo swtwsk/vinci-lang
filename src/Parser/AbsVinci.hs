@@ -81,7 +81,7 @@ data ProcName a = ProcNameId a VIdent
 data StructDef a = SDef a SIdent [TPolyIdent] [FieldDecl a]
     deriving (Ord, Show, Read, Functor, Foldable, Traversable)
 
-data FieldDecl a = FieldDecl a VIdent (Type a)
+data FieldDecl a = FieldDecl a (Attr a) VIdent (Type a)
     deriving (Ord, Show, Read, Functor, Foldable, Traversable)
 
 data Type a
@@ -96,6 +96,9 @@ data Type a
 data RType a = NoRetType a | RetType a (Type a)
     deriving (Ord, Show, Read, Functor, Foldable, Traversable)
 
+data Attr a = NoAttr a | Attr a AttrString
+  deriving (Ord, Show, Read, Functor, Foldable, Traversable)
+
 newtype VIdent = VIdent String
     deriving (Eq, Ord, Show, Read, Data.String.IsString)
 
@@ -103,6 +106,9 @@ newtype SIdent = SIdent String
     deriving (Eq, Ord, Show, Read, Data.String.IsString)
 
 newtype TPolyIdent = TPolyIdent String
+    deriving (Eq, Ord, Show, Read, Data.String.IsString)
+
+newtype AttrString = AttrString String
     deriving (Eq, Ord, Show, Read, Data.String.IsString)
 
 -- | Start position (line, column) of something.
@@ -186,7 +192,8 @@ instance Eq (StructDef a) where
     (SDef _ sl tl fl) == (SDef _ sr tr fr) = sl == sr && tl == tr && fl == fr
 
 instance Eq (FieldDecl a) where
-    (FieldDecl _ vl tl) == (FieldDecl _ vr tr) = vl == vr && tl == tr
+    (FieldDecl _ al vl tl) == (FieldDecl _ ar vr tr) = 
+        al == ar && vl == vr && tl == tr
 
 instance Eq (Type a) where
     (TInt _) == (TInt _) = True
@@ -200,6 +207,11 @@ instance Eq (Type a) where
 instance Eq (RType a) where
     (NoRetType _) == (NoRetType _) = True
     (RetType _ tl) == (RetType _ tr) = tl == tr
+    _ == _ = False
+
+instance Eq (Attr a) where
+    (NoAttr _) == (NoAttr _) = True
+    (Attr _ lAttrString) == (Attr _ rAttrString) = lAttrString == rAttrString
     _ == _ = False
 
 -- | Get the start position of something.
@@ -283,7 +295,7 @@ instance HasPosition (StructDef BNFC'Position) where
 
 instance HasPosition (FieldDecl BNFC'Position) where
     hasPosition = \case
-        FieldDecl p _ _ -> p
+        FieldDecl p _ _ _-> p
 
 instance HasPosition (Type BNFC'Position) where
     hasPosition = \case
@@ -298,3 +310,8 @@ instance HasPosition (RType BNFC'Position) where
     hasPosition = \case
         NoRetType p -> p
         RetType p _ -> p
+
+instance HasPosition (Attr BNFC'Position) where
+    hasPosition = \case
+        NoAttr p -> p
+        Attr p _ -> p

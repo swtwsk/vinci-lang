@@ -8,6 +8,7 @@ import Data.Bifunctor (second)
 import Data.List (find)
 import Data.Maybe (fromJust)
 import qualified Data.Map as Map
+import Utils.Tuple
 import Utils.VarSupply (VarSupply, evalVarSupply, nextVar)
 
 import qualified Core.AST as Core
@@ -78,7 +79,7 @@ coreExprToCPS (Core.FieldGet fName e) k = do
     (_, x) <- nextVar
     coreExprToCPS e $ \z@(CPS.Var _ (CPS.CTStruct s)) -> do
         fieldDefs <- asks (Map.! s)
-        let t = snd $ fromJust (find ((== fName) . fst) fieldDefs)
+        let t = trdTriple $ fromJust (find ((== fName) . fstTriple) fieldDefs)
             x' = CPS.Var x (coreTypeTranslation t)
         kApplied <- k x'
         return $ CPS.CLetFieldGet x' fName z kApplied
@@ -161,7 +162,7 @@ coreExprToCPSWithCont (Core.FieldGet fName e) k = do
     (_, x) <- nextVar
     coreExprToCPS e $ \z@(CPS.Var _ (CPS.CTStruct s)) -> do
         fieldDefs <- asks (Map.! s)
-        let t = snd $ fromJust (find ((== fName) . fst) fieldDefs)
+        let t = trdTriple $ fromJust (find ((== fName) . fstTriple) fieldDefs)
             x' = CPS.Var x (coreTypeTranslation t)
         return $ CPS.CLetFieldGet x' fName z (CPS.CAppCont k x')
 coreExprToCPSWithCont (Core.TupleCons exprs) k = 

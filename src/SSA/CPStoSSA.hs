@@ -14,6 +14,7 @@ import SSA.AST
 import StructDefMap (StructDefMap)
 import SPIRV.Types
 import Utils.DList (output)
+import Utils.Tuple
 import Utils.VarSupply (fromInfiniteList)
 
 type Label = String
@@ -77,7 +78,7 @@ cExprToSSA (CPS.CLetProj x i tuple cexpr) = do
 cExprToSSA (CPS.CLetFieldGet x field struct@(CPS.Var _ t) cexpr) = do
     let (CPS.CTStruct sName) = t
     fieldDefs <- asks $ (Map.! sName) . _structDefs
-    let i = fromJust (findIndex ((== field) . fst) fieldDefs)
+    let i = fromJust (findIndex ((== field) . fstTriple) fieldDefs)
     output $ SAssign (varToSSA x) (SStructGet i $ varToSSA struct)
     cExprToSSA cexpr
 cExprToSSA (CPS.CLetCont k x c1 c2) = do

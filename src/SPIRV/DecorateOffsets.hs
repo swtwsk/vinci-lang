@@ -12,6 +12,7 @@ import StructDefMap (StructDefMap)
 import SPIRV.SpirOps
 import SPIRV.Types
 import Utils.DList (output)
+import Utils.Tuple (trdTriple)
 
 type ReaderEnv = Map.Map SpirType SpirId
 type WList     = DList SpirOp
@@ -41,7 +42,7 @@ toStructMap structDefs typesToDecorate = Map.union basicTypes
             TStruct sName _ -> Just sName
             _ -> Nothing
         fieldTypesList = typeNames <&>
-            \t -> (TStruct t Uniform, snd <$> structDefs Map.! t)
+            \t -> (TStruct t Uniform, trdTriple <$> structDefs Map.! t)
         basicTypes = Map.fromList [ (TInt, SizeOf 4 4)
                                   , (TUnsignedInt, SizeOf 4 4)
                                   , (TFloat, SizeOf 4 4)

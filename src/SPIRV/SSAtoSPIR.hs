@@ -15,6 +15,7 @@ import SSA.AST
 import SPIRV.SpirOps
 import SPIRV.Types
 import Utils.DList (output)
+import Utils.Tuple
 import Utils.VarSupply (fromInfiniteList)
 
 type ReaderEnv = StructDefMap SpirType
@@ -208,7 +209,7 @@ exprToSpir (SStructGet i (Var struct t)) = do
     intType <- getTypeId TInt
     tuple' <- SpirId <$> getRenamedVar struct
     let (TStruct sName _isUniform) = t
-    (_, fieldTy) <- asks ((!! i) . (Map.! sName))
+    (_, _, fieldTy) <- asks ((!! i) . (Map.! sName))
     ptrVarType <- getTypeId (TPointer StorFunction fieldTy)
     varType <- getTypeId fieldTy
 
@@ -316,7 +317,7 @@ getTypeId t@(TFun ret args) =
     getTypeId ret >> mapM_ getTypeId args >> getTypeId' t
 getTypeId t@(TStruct sName _isUniform) = do
     fieldDefs <- asks (Map.! sName)
-    mapM_ getTypeId (snd <$> fieldDefs)
+    mapM_ getTypeId (trdTriple <$> fieldDefs)
     getTypeId' t
 getTypeId t = getTypeId' t
 
@@ -352,7 +353,7 @@ typesToOps structDefs typeIds = flip fmap (Map.toList typeIds) $
         TFun ret args ->
             OpTypeFunction var (typeIds Map.! ret) ((typeIds Map.!) <$> args)
         TStruct sName _isUniform -> OpTypeStruct var $
-            (typeIds Map.!) . snd <$> (structDefs Map.! sName)
+            (typeIds Map.!) . trdTriple <$> (structDefs Map.! sName)
 
 -- courtesy of https://stackoverflow.com/a/12131896
 swap1_3 :: (a -> b -> c -> d) -> (b -> c -> a -> d)

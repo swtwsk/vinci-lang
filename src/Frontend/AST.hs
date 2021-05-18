@@ -3,6 +3,7 @@
 -- 
 module Frontend.AST where
 
+import Attribute (Attribute)
 import Data.List (intercalate)
 
 newtype Program = Prog [Phrase] deriving (Eq, Ord, Read)
@@ -62,7 +63,7 @@ data FieldDef = FieldDef String Expr
 data StructDef = SDef String [String] [FieldDecl]
     deriving (Eq, Ord, Read)
 
-data FieldDecl = FieldDecl String Type
+data FieldDecl = FieldDecl String Type (Maybe Attribute)
     deriving (Eq, Ord, Read)
 
 data Type = TInt
@@ -84,7 +85,7 @@ instance Show Phrase where
     show (TypeSynonym syn t) = "type " ++ syn ++ " = " ++ show t
 
 instance Show LetDef where
-    show (Let letbinds) = "let " ++ intercalate " also " (show <$> letbinds)
+    show (Let letbinds) = "let " ++ intercalate " and " (show <$> letbinds)
 
 instance Show LetBind where
     show (ConstBind lambdavi expr) = show lambdavi ++ " = " ++ show expr
@@ -140,7 +141,9 @@ instance Show StructDef where
         intercalate ", " (show <$> fields) ++ "\n}"
 
 instance Show FieldDecl where
-    show (FieldDecl fieldName t) = fieldName ++ " : " ++ show t
+    show (FieldDecl fieldName t attr) = 
+        maybe "" ((\x -> "[" ++ x ++ "] ") . show) attr ++ 
+        fieldName ++ " : " ++ show t
 
 instance Show Type where
     show TInt = "Int"

@@ -70,7 +70,7 @@ ProcNameId. ProcName ::= VIdent ;
 
 -- Types --
 SDef.       StructDef ::= "struct" SIdent [TPolyIdent] "{" [FieldDecl] "}" ;
-FieldDecl.  FieldDecl ::= VIdent ":" Type ;
+FieldDecl.  FieldDecl ::= Attr VIdent ":" Type ;
 separator nonempty FieldDecl "," ;
 separator TPolyIdent "" ;
 
@@ -84,3 +84,8 @@ coercions Type 1 ;
 
 NoRetType.  RType    ::= ;
 RetType.    RType    ::= "->" Type ;
+
+token AttrString ('[' (char - ["[]"])* ']') ;
+
+NoAttr.     Attr     ::= ;
+Attr.       Attr     ::= "@" AttrString ;

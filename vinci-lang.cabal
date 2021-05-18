@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ef60b5afb2ed1d5e58aa9b594eda1f9a2bcc83dab29d48dea90ee45bb0e51191
+-- hash: bd1a9e6ff4988d2bc1c3b4125289abea83bfd95641e5f14e7f4926002dbb0ead
 
 name:           vinci-lang
 version:        0.1.0.0
@@ -25,6 +25,7 @@ source-repository head
 
 library
   exposed-modules:
+      Attribute
       Core.AST
       Core.ConstDropping
       Core.CoreManager
@@ -40,6 +41,7 @@ library
       CPS.AST
       CPS.CoreToCPS
       Frontend.AST
+      Frontend.ParseAttribute
       Frontend.TranspileAST
       LibraryList
       ManglingPrefixes
@@ -63,6 +65,7 @@ library
       StructDefMap
       Utils.DList
       Utils.List
+      Utils.Tuple
       Utils.VarSupply
   other-modules:
       Paths_vinci_lang
@@ -75,6 +78,7 @@ library
     , containers
     , dlist
     , mtl
+    , parsec
     , tasty
     , tasty-hunit
     , tasty-quickcheck
@@ -94,6 +98,7 @@ executable vinci-lang-exe
     , containers
     , dlist
     , mtl
+    , parsec
     , tasty
     , tasty-hunit
     , tasty-quickcheck
@@ -122,6 +127,7 @@ test-suite vinci-lang-test
     , containers
     , dlist
     , mtl
+    , parsec
     , tasty
     , tasty-hunit
     , tasty-quickcheck

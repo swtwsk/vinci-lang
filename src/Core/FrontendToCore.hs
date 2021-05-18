@@ -18,6 +18,7 @@ import Core.Ops
 import Core.Toposort (inverselySortTopologically)
 import ManglingPrefixes (frontendToCoreVarPrefix)
 import StructDefMap (StructDefMap, StructName, FieldDef)
+import Utils.Tuple (fstTriple)
 import Utils.VarSupply
 
 type SuppM = ReaderT (StructDefMap Type) (VarSupply String)
@@ -50,7 +51,7 @@ extractTranslations [] = ([], Map.empty)
 
 structsToCore :: F.Phrase -> Maybe (StructName, [FieldDef Type])
 structsToCore (F.StructDecl (F.SDef structName _polys fields)) =
-    let fields' = (\(F.FieldDecl f ty) -> (f, typeToCore ty)) <$> fields in
+    let fields' = (\(F.FieldDecl f ty attr) -> (f, attr, typeToCore ty)) <$> fields in
     Just (structName, fields')
 structsToCore _ = Nothing
 
@@ -236,4 +237,4 @@ sortWithOrder :: [FieldDef Type] -- order list
 sortWithOrder order = sortOn getOrder
     where
         getOrder (F.FieldDef k _) = Map.findWithDefault (-1) k ordermap
-        ordermap = Map.fromList (zip (fst <$> order) [(0 :: Int)..])
+        ordermap = Map.fromList (zip (fstTriple <$> order) [(0 :: Int)..])

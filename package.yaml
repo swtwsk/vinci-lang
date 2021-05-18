@@ -24,6 +24,7 @@ dependencies:
 - containers
 - dlist
 - mtl
+- parsec
 # for now, because otherwise HLS doesn't see it
 - tasty
 - tasty-hunit

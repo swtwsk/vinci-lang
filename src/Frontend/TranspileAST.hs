@@ -1,10 +1,13 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Frontend.TranspileAST (
     transpile,
 ) where
 
+import Attribute (Attribute)
 import Frontend.AST
+import Frontend.ParseAttribute (readAttribute)
 import qualified Parser.AbsVinci as Abs
 
 class Transpilable a b where
@@ -78,7 +81,7 @@ instance Transpilable (Abs.StructDef a) StructDef where
     transpile (Abs.SDef _ sident polyidents fielddecls) = SDef (extractSIdent sident) (extractPolyIdent <$> polyidents) (transpile <$> fielddecls)
 
 instance Transpilable (Abs.FieldDecl a) FieldDecl where
-    transpile (Abs.FieldDecl _ vident t) = FieldDecl (extractVIdent vident) (transpile t)
+    transpile (Abs.FieldDecl _ attr vident t) = FieldDecl (extractVIdent vident) (transpile t) (transpile attr)
 
 instance Transpilable (Abs.Type a) Type where
     transpile (Abs.TInt _) = TInt
@@ -87,6 +90,10 @@ instance Transpilable (Abs.Type a) Type where
     transpile (Abs.TStruct _ sident) = TStruct (extractSIdent sident)
     transpile (Abs.TPoly _ polyIdent) = TPoly (extractPolyIdent polyIdent)
     transpile (Abs.TFun _ t1 t2) = TFun (transpile t1) (transpile t2)
+
+instance Transpilable (Abs.Attr a) (Maybe Attribute) where
+    transpile (Abs.NoAttr _) = Nothing
+    transpile (Abs.Attr _ (Abs.AttrString attr)) = readAttribute attr
 
 extractVIdent :: Abs.VIdent -> String
 extractVIdent (Abs.VIdent ident) = ident
