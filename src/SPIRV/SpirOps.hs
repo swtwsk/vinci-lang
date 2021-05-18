@@ -53,6 +53,8 @@ data SpirOp = OpFunction SpirId SpirId SpirFunctionControl SpirId
             | OpTypeStruct SpirId [SpirId]
             | OpTypePointer SpirId SpirStorageClass SpirId
             | OpTypeFunction SpirId SpirId [SpirId]
+
+            | OpMemberDecorate SpirId Int SpirDecoration [Int]
             deriving Eq
 
 data SpirConst = SCFloat Double
@@ -68,6 +70,8 @@ data SpirStorageClass = StorFunction deriving (Eq, Ord) -- and other
 data SpirLoopControl = LCNone | LCUnroll | LCDontUnroll deriving Eq -- and other
 
 data SpirSelectionControl = SelCtrNone | SelCtrFlatten | SelCtrDontFlatten deriving Eq
+
+data SpirDecoration = Block | Offset deriving (Eq, Ord, Show)
 
 -- SHOWS
 instance Show SpirId where
@@ -155,6 +159,10 @@ instance Show SpirOp where
         show res ++ " = OpTypePointer " ++ show storage ++ " " ++ show t
     show (OpTypeFunction res resT argTypes) = 
         showOpWithResult res "OpTypeFunction" (resT:argTypes)
+    show (OpMemberDecorate typeId memberId decoration decArgs) =
+        "OpMemberDecorate " ++ show typeId ++ " " ++ show memberId ++ 
+        " " ++ show decoration ++ 
+        (if null decArgs then "" else " ") ++ unwords (show <$> decArgs)
 
 showOpWithResult :: SpirId -> String -> [SpirId] -> String
 showOpWithResult resId opName args = show resId ++ " = " ++ opName ++ 

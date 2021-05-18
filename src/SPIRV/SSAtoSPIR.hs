@@ -207,7 +207,7 @@ exprToSpir (SStructGet i (Var struct t)) = do
     let [iVar, resVar, tmp] = SpirId <$> vars
     intType <- getTypeId TInt
     tuple' <- SpirId <$> getRenamedVar struct
-    let (TStruct sName) = t
+    let (TStruct sName _isUniform) = t
     (_, fieldTy) <- asks ((!! i) . (Map.! sName))
     ptrVarType <- getTypeId (TPointer StorFunction fieldTy)
     varType <- getTypeId fieldTy
@@ -314,7 +314,7 @@ getTypeId t@(TVector inner _) = getTypeId inner >> getTypeId' t
 getTypeId t@(TPointer _ inner) = getTypeId inner >> getTypeId' t
 getTypeId t@(TFun ret args) =
     getTypeId ret >> mapM_ getTypeId args >> getTypeId' t
-getTypeId t@(TStruct sName) = do
+getTypeId t@(TStruct sName _isUniform) = do
     fieldDefs <- asks (Map.! sName)
     mapM_ getTypeId (snd <$> fieldDefs)
     getTypeId' t
@@ -351,7 +351,7 @@ typesToOps structDefs typeIds = flip fmap (Map.toList typeIds) $
         TPointer storage t' -> OpTypePointer var storage (typeIds Map.! t')
         TFun ret args ->
             OpTypeFunction var (typeIds Map.! ret) ((typeIds Map.!) <$> args)
-        TStruct sName -> OpTypeStruct var $
+        TStruct sName _isUniform -> OpTypeStruct var $
             (typeIds Map.!) . snd <$> (structDefs Map.! sName)
 
 -- courtesy of https://stackoverflow.com/a/12131896

@@ -67,7 +67,7 @@ cExprToSSA (CPS.CLetVal x val cexpr) = do
         CPS.CLitBool b         -> SLitBool b
         CPS.CLitInt i          -> SLitInt i
         CPS.CStruct sName vars -> 
-            SStructCtr (TStruct sName) $ varToSSA <$> vars
+            SStructCtr (TStruct sName NotUniform) $ varToSSA <$> vars
         CPS.CTuple vars        -> 
             SStructCtr (TVector TFloat $ length vars) $ varToSSA <$> vars
     cExprToSSA cexpr
@@ -190,7 +190,7 @@ cTypeToSSA ct@(CPS.CTFun _ _) = TFun ret args
         aggregateTypes (CPS.CTFun t1' t2') = first (t1':) (aggregateTypes t2')
         aggregateTypes t = ([], t)
 cTypeToSSA (CPS.CTTuple t i) = TVector (cTypeToSSA t) i
-cTypeToSSA (CPS.CTStruct sName) = TStruct sName
+cTypeToSSA (CPS.CTStruct sName) = TStruct sName NotUniform
 cTypeToSSA CPS.CTBottom = undefined
 
 varToSSA :: CPS.Var -> Var

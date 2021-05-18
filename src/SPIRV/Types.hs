@@ -8,11 +8,13 @@ data SpirType = TBool
               | TUnsignedInt
               | TFloat
               | TVector SpirType Int
-              | TStruct String
+              | TStruct String SpirStructUniform
               | TVoid
               | TPointer SpirStorageClass SpirType
               | TFun SpirType [SpirType]
               deriving (Eq, Ord)
+
+data SpirStructUniform = Uniform | NotUniform deriving (Eq, Ord, Show)
 
 instance Show SpirType where
     show TBool = "bool"
@@ -20,7 +22,7 @@ instance Show SpirType where
     show TUnsignedInt = "uint"
     show TFloat = "float"
     show (TVector t size) = "v" ++ show size ++ show t
-    show (TStruct sName) = sName
+    show (TStruct sName _) = sName
     show TVoid = "void"
     show (TPointer _ t) = "*" ++ show t
     show (TFun ret args) = 
