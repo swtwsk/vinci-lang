@@ -1,48 +1,75 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TupleSections #-}
+
+-- | Handle conversion of SSA to SPIR-V code
 module SPIRV.SSAtoSPIR (ssaToSpir) where
 
 import Control.Monad
-import Control.Monad.RWS
 import Data.Bifunctor (first, second)
-import Data.DList (DList, toList)
+import Data.DList (toList)
+import Data.List (elemIndex)
 import qualified Data.Map as Map
+import Data.Maybe (fromMaybe, isNothing)
 
+import qualified Attribute
 import Core.Ops
-import LibraryList (spirLibraryList)
+import LibraryList (spirLibraryList, spirStructureList)
 import ManglingPrefixes (ssaToSpirLabelPrefix)
-import StructDefMap (StructDefMap)
+import StructDefMap (FieldDef, StructDefMap)
 import SSA.AST
+import SPIRV.DecorateOffsets (decorateOffsets)
+import SPIRV.SpirCompilerMonad
+import SPIRV.SpirManager (SpirManager(..), defaultManager)
 import SPIRV.SpirOps
 import SPIRV.Types
-import Utils.DList (output)
 import Utils.Tuple
-import Utils.VarSupply (fromInfiniteList)
 
-type ReaderEnv = StructDefMap SpirType
+type ReturnCallback = SExpr -> SpirCompiler () -> SpirCompiler ()
 
-data StateEnv = StateEnv { _typeIds   :: TypeIdsMap
-                         , _renames   :: Map.Map String String
-                         , _phiVars   :: Map.Map String SpirType
-                         , _varSupply :: [String] }
-
-type TypeIdsMap = Map.Map SpirType SpirId
-type SpirList = DList SpirOp
-type SpirM = RWS ReaderEnv SpirList StateEnv
-
-ssaToSpir :: ([SFnDef], StructDefMap SpirType) -> ([SpirOp], [SpirOp])
-ssaToSpir (fnDefs, structDefs) = (typeIds ++ consts, fnOps'')
+-- -----------------------------------------------------------------------------
+-- | Top-level of the SPIR-V code generator
+--
+ssaToSpir :: ([SFnDef], StructDefMap SpirType) -> SpirManager
+ssaToSpir (fnDefs, structDefs) = defaultManager
+    { _typeDeclarations = typeDeclarations
+    , _opEntryPoints    = _entryPoints finalSt
+    , _globalVariables  = _globalVars finalSt
+    , _annotations      = _stAnnotations finalSt ++ decorateOffsets finalStructDef finalTypeIds
+    , _constants        = consts
+    , _functions        = hoistVariables fnOps'
+    }
     where
-        (typeIds, fnOps) = ssaToSpir' fnDefs structDefs
+        (frag, vert, rest) = extractMains fnDefs
+        initialState = initialStateEnv $ Map.union structDefs spirStructureList
+        (typeDeclarations, finalSt, ops) = runCompiler initialState $ do
+            mapM_ fragMainToSpir frag
+            mapM_ vertMainToSpir vert
+            mapM_ fnDefToSpir rest
+            typesToOps
+        finalStructDef = _structDefs finalSt
+        finalTypeIds   = _typeIds finalSt
+
+        fnOps            = toList ops
         (consts, fnOps') = extractConst fnOps
-        fnOps''          = hoistVariables fnOps'
 
-        extractConst :: [SpirOp] -> ([SpirOp], [SpirOp])
-        extractConst (c@OpConstant {}:t) = first (c:) $ extractConst t
-        extractConst (c@OpConstantTrue {}:t) = first (c:) $ extractConst t
-        extractConst (c@OpConstantFalse {}:t) = first (c:) $ extractConst t
-        extractConst (h:t) = second (h:) $ extractConst t
-        extractConst [] = ([], [])
+-- | Search for shader entry points
+extractMains :: [SFnDef] -> (Maybe SFnDef, Maybe SFnDef, [SFnDef])
+extractMains = flip foldr (Nothing, Nothing, []) $
+    \f@(SFnDef fName _ _ _ _) (frag, vert, rest) -> case fName of
+        "frag" -> (Just f, vert, rest)
+        "vert" -> (frag, Just f, rest)
+        _      -> (frag, vert, f:rest)
 
+-- | Extract constants from generated code - in SPIR-V they should be at the top
+extractConst :: [SpirOp] -> ([SpirOp], [SpirOp])
+extractConst (c@OpConstant {}:t) = first (c:) $ extractConst t
+extractConst (c@OpConstantTrue {}:t) = first (c:) $ extractConst t
+extractConst (c@OpConstantFalse {}:t) = first (c:) $ extractConst t
+extractConst (h:t) = second (h:) $ extractConst t
+extractConst [] = ([], [])
+
+-- | Hoist function-scoped variables to the beginning of the first block
+-- - required from SPIR-V specification
 hoistVariables :: [SpirOp] -> [SpirOp]
 hoistVariables = concat . (uncurry hoistVariables' . extractVariables <$>)
                         . (fst . splitToFns)
@@ -65,53 +92,290 @@ hoistVariables = concat . (uncurry hoistVariables' . extractVariables <$>)
         splitToFns (h:t) = second (h:) $ splitToFns t
         splitToFns [] = ([], [])
 
-ssaToSpir' :: [SFnDef] -> StructDefMap SpirType -> ([SpirOp], [SpirOp])
-ssaToSpir' fnDefs structDefs =
-    (typesToOps structDefs $ _typeIds finalSt, toList ops)
+-- -----------------------------------------------------------------------------
+-- * Function code generation
+--
+
+-- | Generate code for function that's not an entry point
+fnDefToSpir :: SFnDef -> SpirCompiler ()
+fnDefToSpir (SFnDef fName rt fArgs block labelled) =
+    fnDefToSpir' fName fName rt fArgs block labelled (return $ \_ ret -> ret)
+
+-- | Generate code for vertex shader entry point function
+vertMainToSpir :: SFnDef -> SpirCompiler ()
+vertMainToSpir (SFnDef fName rt fArgs block labelled) =
+    fnDefToSpir' fName "main" TVoid [] block labelled preBlockProcessor
     where
-        (finalSt, ops) = swap1_3 execRWS readerEnv initialStateEnv $
-            mapM_ getTypeId (snd <$> funs) >> mapM_ fnDefToSpir fnDefs
+        retCallback :: [Var] -> ReturnCallback
+        retCallback outCtrVars = \(SVar var) _ -> do
+            let getters = map (`SStructGet` var) [0..length outCtrVars - 1]
+            zipWithM_ ((stmtToSpir (\_ x -> x) False .) . SAssign) outCtrVars getters
+            output OpReturn
 
-        readerEnv = structDefs
-        initialStateEnv = StateEnv
-            { _typeIds = Map.empty
-            , _renames = Map.empty
-            , _phiVars = Map.empty
-            , _varSupply = [show i | i <- [(61 :: Int)..]] }
-        funs = flip fmap fnDefs $ \(SFnDef fName rt args _ _) ->
-                (fName, TFun rt ((\(SArg (Var _ t)) -> TPointer StorFunction t) <$> args))
+        preBlockProcessor :: SpirCompiler ReturnCallback
+        preBlockProcessor = do
+            let (SArg uniVar:SArg insVar:_) = fArgs
+                (Var _uniName uniT@(TStruct uniStruct _)) = uniVar
+                (Var _insName insT@(TStruct insStruct _)) = insVar
+                (TStruct outsStruct _) = rt
 
-fnDefToSpir :: SFnDef -> SpirM ()
-fnDefToSpir (SFnDef fName rt fArgs block labelled) = do
-    retType  <- getTypeId rt
-    let ats  = (\(SArg a) -> TPointer StorFunction $ _varType a) <$> fArgs
-    funType  <- getTypeId $ TFun rt ats
-    output $ OpFunction (SpirId fName) retType FCNone funType
+            insArgs <- gets $ (Map.! insStruct) . _structDefs
+            insCtrVars <- mapM processIn insArgs
+            stmtToSpir (\_ x -> x) True $
+                        SAssign insVar (SStructCtr insT insCtrVars)
 
-    renamedArgs <- forM fArgs $ \(SArg (Var arg _)) ->
+            uniArgs <- gets $ (Map.! uniStruct) . _structDefs
+            uniCtrVars <- mapM entryPointArgumentToUniform uniArgs
+            stmtToSpir (\_ x -> x) True $
+                        SAssign uniVar (SStructCtr uniT uniCtrVars)
+
+            outArgs <- gets $ (Map.! outsStruct) . _structDefs
+            let outs = removePredefined outArgs
+            predefinedStructVar <- processPredefinedVertexOutputs
+            outCtrVars <- mapM (mapPredefined predefinedStructVar) outArgs
+
+            entryPointVarIds <- mapM ((SpirId <$>) . getRenamedVar) $
+                        (fstTriple <$> insArgs) ++ (fstTriple <$> outs) ++ [predefinedStructVar]
+            let entryPoint = OpEntryPoint Vertex (SpirId "main") "main" entryPointVarIds
+            modify $ \st -> st { _entryPoints = entryPoint:_entryPoints st }
+            return (retCallback outCtrVars)
+
+        processIn  = entryPointArgumentToGlobal StorInput
+        processOut = entryPointArgumentToGlobal StorOutput
+
+        removePredefined = filter (flip notElem [ "gl_Position"
+                                                , "gl_PointSize" 
+                                                , "gl_ClipDistance"
+                                                , "gl_CullDistance" ] . fstTriple)
+        mapPredefined var = \field@(fieldName, _, _) -> case fieldName of
+                "gl_Position"     -> processPredefinedVertexOutput var field
+                "gl_PointSize"    -> processPredefinedVertexOutput var field
+                "gl_ClipDistance" -> processPredefinedVertexOutput var field
+                "gl_CullDistance" -> processPredefinedVertexOutput var field
+                _                 -> processOut field
+
+-- | Generate code for fragment shader entry point function
+fragMainToSpir :: SFnDef -> SpirCompiler ()
+fragMainToSpir (SFnDef fName rt fArgs block labelled) =
+    fnDefToSpir' fName "main" TVoid [] block labelled preBlockProcessor
+    where
+        retCallback :: [Var] -> ReturnCallback
+        retCallback outCtrVars = \(SVar var) _ -> do
+            let getters = map (`SStructGet` var) [0..length outCtrVars - 1]
+            zipWithM_ ((stmtToSpir (\_ x -> x) False .) . SAssign) outCtrVars getters
+            output OpReturn
+
+        preBlockProcessor :: SpirCompiler ReturnCallback
+        preBlockProcessor = do
+            let (SArg uniVar:SArg insVar:_) = fArgs
+                (Var _uniName uniT@(TStruct uniStruct _)) = uniVar
+                (Var _insName insT@(TStruct insStruct _)) = insVar
+                (TStruct outsStruct _) = rt
+
+            insArgs <- gets $ (Map.! insStruct) . _structDefs
+            insCtrVars <- mapM processIn insArgs
+            stmtToSpir (\_ x -> x) True $
+                        SAssign insVar (SStructCtr insT insCtrVars)
+
+            uniArgs <- gets $ (Map.! uniStruct) . _structDefs
+            uniCtrVars <- mapM entryPointArgumentToUniform uniArgs
+            stmtToSpir (\_ x -> x) True $
+                        SAssign uniVar (SStructCtr uniT uniCtrVars)
+
+            outArgs <- gets $ (Map.! outsStruct) . _structDefs
+            outCtrVars <- mapM processOut outArgs
+
+            entryPointVarIds <- mapM ((SpirId <$>) . getRenamedVar) $
+                        (fstTriple <$> insArgs) ++ (fstTriple <$> outArgs)
+            let entryPoint = OpEntryPoint Fragment (SpirId "main") "main" entryPointVarIds
+            modify $ \st -> st { _entryPoints = entryPoint:_entryPoints st }
+            return (retCallback outCtrVars)
+
+        processIn  = entryPointArgumentToGlobal StorInput
+        processOut = entryPointArgumentToGlobal StorOutput
+
+-- -----------------------------------------------------------------------------
+-- * Function code generation helper functions
+--
+
+-- | Helper for generating code for function
+fnDefToSpir' :: String                       -- ^ SSA function name
+             -> String                       -- ^ SPIR-V compiled function name
+             -> SpirType                     -- ^ function return type
+             -> [SArg]                       -- ^ list of arguments
+             -> SBlock                       -- ^ entry block
+             -> [SLabelledBlock]             -- ^ list of the rest of the blocks
+             -> SpirCompiler ReturnCallback  -- ^ function to be called before 
+                                             -- generating code for blocks
+             -> SpirCompiler ()
+fnDefToSpir' funName compiledFunName returnType arguments block labelledBlocks preBlockProcessor = do
+    retType  <- getTypeId returnType
+    let ats  = (\(SArg a) -> TPointer StorFunction $ _varType a) <$> arguments
+    funType  <- getTypeId $ TFun returnType ats
+    output $ OpFunction (SpirId compiledFunName) retType FCNone funType
+
+    renamedArgs <- forM arguments $ \(SArg (Var arg _)) ->
                         (arg, ) <$> buildVar ((arg ++ "_")++)
     zipWithM_ processArgs renamedArgs ats
-    renamedLabels <- mapM (\(SLabelled (SLabel l) _ _) -> (toLabel l, ) <$> nextVar) labelled
+    renamedLabels <- mapM (\(SLabelled (SLabel l) _ _) -> (toLabel l, ) <$> nextVar) labelledBlocks
     let renameMap = Map.fromList (renamedArgs ++ renamedLabels)
-
     label <- nextVar
     output $ OpLabel (SpirId label)
-    let renameMap' = Map.insert (toLabel $ fName ++ "_init") label renameMap
+    let renameMap' = Map.insert (toLabel $ funName ++ "_init") label renameMap
     modify $ \st -> st { _renames  = renameMap' }
 
-    blockToSpir block
-    forM_ labelled labelledToSpir
+    retCallback <- preBlockProcessor
+
+    blockToSpir retCallback block
+    forM_ labelledBlocks (labelledToSpir retCallback)
 
     output OpFunctionEnd
     where
-        processArgs :: (VarName, String) -> SpirType -> SpirM ()
+        processArgs :: (a, String) -> SpirType -> SpirCompiler ()
         processArgs (_, rArg) t = do
             typeId <- getTypeId t
             let argId = SpirId rArg
             output $ OpFunctionParameter argId typeId
 
-labelledToSpir :: SLabelledBlock -> SpirM ()
-labelledToSpir (SLabelled l phiNodes block) = do
+-- | Convert shader entry point argument to a global variable
+entryPointArgumentToGlobal :: SpirStorageClass  -- ^ global var storage class
+                           -> FieldDef SpirType -- ^ field to process
+                           -> SpirCompiler Var  -- ^ global variable
+entryPointArgumentToGlobal sc (fieldName, Just (Attribute.Location l), fType) =
+    entryPointArgumentToGlobal' sc annotationFn fieldName fType
+    where
+        annotationFn = \fieldId -> [OpDecorate (SpirId fieldId) Location [l]]
+entryPointArgumentToGlobal _ _ = undefined
+
+-- | Convert shader entry point argument to a uniform global variable
+entryPointArgumentToUniform :: FieldDef SpirType -> SpirCompiler Var
+entryPointArgumentToUniform ( fieldName
+                            , Just (Attribute.Binding b)
+                            , fType@(TStruct structName _) ) = do
+    (_, uniformStructType) <- structToUniformStruct structName
+    uniformStructTypeId    <- getTypeId uniformStructType
+    let annotation = OpDecorate uniformStructTypeId Block []
+    modify $ \st -> st { _stAnnotations = annotation:_stAnnotations st }
+
+    fieldRenamed   <- getRenamedVar fieldName
+    uniformVarType <- getTypeId (TPointer StorUniform uniformStructType)
+    let variable = OpVariable (SpirId fieldRenamed) uniformVarType StorUniform
+        annotations = getUniformAnnotations b fieldRenamed
+    modify $ \st -> st { _globalVars = variable:_globalVars st
+                       , _stAnnotations = annotations ++ _stAnnotations st }
+
+    newId <- extractUniformToVariable fieldName structName
+    tmpVar <- buildVar ((fieldName ++) . ('_':))
+    varType <- getTypeId (TPointer StorFunction fType)
+
+    output $ OpVariable (SpirId tmpVar) varType StorFunction
+    output $ OpStore (SpirId tmpVar) newId
+
+    insertRenamed tmpVar tmpVar
+    return $ Var tmpVar fType
+-- TODO: Following should be used just for sampler/image
+-- entryPointArgumentToUniform (fieldName, Just (Attribute.Binding b), fType) =
+--     entryPointArgumentToGlobal' StorUniformConstant (getUniformAnnotations b) fieldName fType
+entryPointArgumentToUniform _ = undefined
+
+-- | List annotations (decorations) for uniform bindings
+getUniformAnnotations :: Int -> String -> [SpirOp]
+getUniformAnnotations b fieldId = [ OpDecorate (SpirId fieldId) Binding [b]
+                                  , OpDecorate (SpirId fieldId) DescriptorSet [0] ]
+
+-- | Generate code copying global variable to a local one
+entryPointArgumentToGlobal' :: SpirStorageClass
+                            -> (String -> [SpirOp])
+                            -> String
+                            -> SpirType
+                            -> SpirCompiler Var
+entryPointArgumentToGlobal' sc annotationsFn fieldName fType = do
+    fieldRenamed <- getRenamedVar fieldName
+    varType <- getTypeId (TPointer sc fType)
+    let variable    = OpVariable (SpirId fieldRenamed) varType sc
+        annotations = annotationsFn fieldRenamed
+    modify $ \st -> st { _globalVars    = variable:_globalVars st
+                       , _stAnnotations = annotations ++ _stAnnotations st }
+    return $ Var fieldName fType
+
+predefinedVertexOutputId :: String
+predefinedVertexOutputId = "_vertex"
+
+processPredefinedVertexOutputs :: SpirCompiler String
+processPredefinedVertexOutputs = do
+    let structType = TStruct "gl_PerVertex" NotUniform
+    outputStructType <- getTypeId structType
+    outputVarType    <- getTypeId (TPointer StorOutput structType)
+    let variable    = OpVariable (SpirId predefinedVertexOutputId) outputVarType StorOutput
+        annotations = [ OpDecorate outputStructType Block []
+                      , OpMemberDecorate outputStructType 0 BuiltIn [Right Position]
+                      , OpMemberDecorate outputStructType 1 BuiltIn [Right PointSize]
+                      , OpMemberDecorate outputStructType 2 BuiltIn [Right ClipDistance]
+                      , OpMemberDecorate outputStructType 3 BuiltIn [Right CullDistance] ]
+    modify $ \st -> st { _globalVars    = variable:_globalVars st
+                       , _stAnnotations = annotations ++ _stAnnotations st }
+    insertRenamed predefinedVertexOutputId predefinedVertexOutputId
+    return predefinedVertexOutputId
+
+processPredefinedVertexOutput :: String -> FieldDef SpirType -> SpirCompiler Var
+processPredefinedVertexOutput var (fieldName, Nothing, fType) = do
+    let structName = "gl_PerVertex"
+    fieldList <- gets $ (Map.! structName) . _structDefs
+    let i = fromMaybe undefined (elemIndex fieldName (fstTriple <$> fieldList))
+
+    vars <- replicateM 2 nextVar
+    let [iVar, resVar] = vars
+    intType <- getTypeId TInt
+    var' <- SpirId <$> getRenamedVar var
+    ptrVarType <- getTypeId (TPointer StorOutput fType)
+
+    output $ OpConstant (SpirId iVar) intType (SCSigned i)
+    output $ OpAccessChain (SpirId resVar) ptrVarType var' (SpirId iVar)
+    insertRenamed resVar resVar
+    return (Var resVar fType)
+processPredefinedVertexOutput _ _ = undefined
+
+-- | Recursively walk through the uniform struct and copy its content to 
+-- a function-scoped variable 
+extractUniformToVariable :: String -> String -> SpirCompiler SpirId
+extractUniformToVariable structVar structName = do
+    (uniformFields, uniformStructType) <- structToUniformStruct structName
+    let uniformFields' = zip uniformFields [0..]
+
+    ctrVars <- forM uniformFields' $ \((fieldName, _attr, fType), i) -> case fType of
+        TStruct innerStructName _ -> do
+            tmpVar <- buildVar ((fieldName ++) . ('_':))
+            (SpirId tmpId, _) <- structGetToSpir i structVar uniformStructType StorUniform
+            insertRenamed tmpVar tmpId
+            extractUniformToVariable tmpVar innerStructName
+        _ -> fst <$> structGetToSpir i structVar uniformStructType StorUniform
+
+    tmp <- SpirId <$> nextVar
+    sTypeId <- getTypeId (TStruct structName NotUniform)
+    output $ OpCompositeConstruct tmp sTypeId ctrVars
+    return tmp
+
+-- | Recursively walk through the struct and make it to an uniform version
+structToUniformStruct :: String -> SpirCompiler ([FieldDef SpirType], SpirType)
+structToUniformStruct structName = do
+    fields <- gets $ (Map.! structName) . _structDefs
+    let uniformFields     = toUniform <$> fields
+        uniformStructName = structName ++ "_Uniform"
+        uniformStructType = TStruct uniformStructName Uniform
+    modify $ \st -> st { _structDefs = Map.insert uniformStructName uniformFields (_structDefs st) }
+    return (uniformFields, uniformStructType)
+    where
+        toUniform = thirdTriple $ \case
+            TStruct innerStructName _ -> TStruct innerStructName Uniform
+            t -> t
+
+-- -----------------------------------------------------------------------------
+-- * Block code generation
+--
+
+-- | Generate code for a labelled block (including phi nodes)
+labelledToSpir :: ReturnCallback -> SLabelledBlock -> SpirCompiler ()
+labelledToSpir retCallback (SLabelled l phiNodes block) = do
     l' <- getRenamedLabel l
     output $ OpLabel (SpirId l')
     renamedPhiVars <- forM phiNodes $ \(SPhiNode (Var var t) args) -> do
@@ -123,32 +387,34 @@ labelledToSpir (SLabelled l phiNodes block) = do
         return (var, var')
     let renameMap = Map.fromList renamedPhiVars
     modify $ \st -> st { _renames = Map.union renameMap (_renames st) }
-    blockToSpir block
+    blockToSpir retCallback block
     where
         getRenamed (pl, a) = do
             pl' <- getRenamedLabel pl
             a'  <- getRenamedVar a
             return (SpirId a', SpirId pl')
 
-blockToSpir :: SBlock -> SpirM ()
-blockToSpir (SBlock stmts) = forM_ stmts stmtToSpir
+-- | Generate code for one block
+blockToSpir :: ReturnCallback -> SBlock -> SpirCompiler ()
+blockToSpir retCallback (SBlock stmts) = forM_ stmts (stmtToSpir retCallback True)
 
-stmtToSpir :: SStmt -> SpirM ()
-stmtToSpir (SAssign (Var var t) expr) = do
+-- | Generate code for one statement
+stmtToSpir :: ReturnCallback -> Bool -> SStmt -> SpirCompiler ()
+stmtToSpir _ newVariable (SAssign (Var var t) expr) = do
     -- var' <- nextVar  CAN BE FORWARD REFERENCED!
     var' <- getRenamedVar var
     varType  <- getTypeId (TPointer StorFunction t)
     (tmp, _) <- exprToSpir expr
-    output $ OpVariable (SpirId var') varType StorFunction
+    when newVariable (output $ OpVariable (SpirId var') varType StorFunction)
     output $ OpStore (SpirId var') tmp
     insertRenamed var var'
-stmtToSpir (SGoto l) = do
+stmtToSpir _ _ (SGoto l) = do
     l' <- getRenamedLabel l
     output $ OpBranch (SpirId l')
-stmtToSpir (SReturn expr) = do
+stmtToSpir retCallback _ (SReturn expr) = retCallback expr $ do
     (tmp, _) <- exprToSpir expr
     output $ OpReturnValue tmp
-stmtToSpir (SIf sm expr l1 l2) = do
+stmtToSpir _ _ (SIf sm expr l1 l2) = do
     (tmp, _) <- exprToSpir expr
     l1' <- SpirId <$> getRenamedLabel l1
     l2' <- SpirId <$> getRenamedLabel l2
@@ -163,7 +429,8 @@ stmtToSpir (SIf sm expr l1 l2) = do
         Nothing -> return $ OpSelectionMerge l2' SelCtrNone
     output $ OpBranchConditional tmp l1' l2'
 
-exprToSpir :: SExpr -> SpirM (SpirId, SpirType)
+-- | Generate code for one expression
+exprToSpir :: SExpr -> SpirCompiler (SpirId, SpirType)
 exprToSpir (SVar (Var vName t)) = do
     var' <- SpirId <$> getRenamedVar vName
     tmp  <- SpirId <$> nextVar
@@ -203,20 +470,8 @@ exprToSpir (SStructCtr sType vars) = do
     sTypeId <- getTypeId sType
     output $ OpCompositeConstruct tmp sTypeId (fst <$> loaded)
     return (tmp, sType)
-exprToSpir (SStructGet i (Var struct t)) = do
-    vars <- replicateM 3 nextVar
-    let [iVar, resVar, tmp] = SpirId <$> vars
-    intType <- getTypeId TInt
-    tuple' <- SpirId <$> getRenamedVar struct
-    let (TStruct sName _isUniform) = t
-    (_, _, fieldTy) <- asks ((!! i) . (Map.! sName))
-    ptrVarType <- getTypeId (TPointer StorFunction fieldTy)
-    varType <- getTypeId fieldTy
-
-    output $ OpConstant iVar intType (SCSigned i)
-    output $ OpAccessChain resVar ptrVarType tuple' iVar
-    output $ OpLoad tmp varType resVar
-    return (tmp, fieldTy)
+exprToSpir (SStructGet i (Var struct t)) =
+    structGetToSpir i struct t StorFunction
 exprToSpir (STupleProj i (Var tuple t)) = do
     vars <- replicateM 3 nextVar
     let [iVar, resVar, tmp] = SpirId <$> vars
@@ -283,23 +538,33 @@ exprToSpir (SLitInt i) = do
     output $ OpConstant v intType (SCSigned i)
     return (v, TInt)
 
-insertRenamed :: String -> String -> SpirM ()
-insertRenamed var renamedVar = do
-    renames <- gets _renames
-    let renames' = Map.insert var renamedVar renames
-    modify $ \st -> st { _renames = renames' }
+-- | Helper function generating "getter" for SPIR-V struct (Composite)
+structGetToSpir :: Int
+                -> String
+                -> SpirType
+                -> SpirStorageClass
+                -> SpirCompiler (SpirId, SpirType)
+structGetToSpir i structVar outType ptrStorageClass = do
+    vars <- replicateM 3 nextVar
+    let [iVar, resVar, tmp] = SpirId <$> vars
+    intType <- getTypeId TInt
+    tuple' <- SpirId <$> getRenamedVar structVar
+    let (TStruct sName _) = outType
+    (_, _, fieldTy) <- gets $ (!! i) . (Map.! sName) . _structDefs
+    ptrVarType <- getTypeId (TPointer ptrStorageClass fieldTy)
+    varType <- getTypeId fieldTy
 
-getRenamedVar :: String -> SpirM String
-getRenamedVar var = do
-    renames <- gets _renames
-    swap1_3 maybe return (Map.lookup var renames) $ do
-        var' <- nextVar
-        insertRenamed var var'
-        return var'
+    output $ OpConstant iVar intType (SCSigned i)
+    output $ OpAccessChain resVar ptrVarType tuple' iVar
+    output $ OpLoad tmp varType resVar
+    return (tmp, fieldTy)
 
-getRenamedLabel :: SLabel -> SpirM String
+-- | Converts SSA label to a SPIR-V label variable
+getRenamedLabel :: SLabel -> SpirCompiler String
 getRenamedLabel (SLabel l) = getRenamedVar (toLabel l)
 
+-- | Adds '@' at the beginning of a label string to differentiate between labels
+-- and normal variables
 toLabel :: String -> String
 toLabel = (ssaToSpirLabelPrefix ++)
 
@@ -310,18 +575,19 @@ toLabel = (ssaToSpirLabelPrefix ++)
 -- (apparently it started processing (TVector TFloat _) before the end of
 -- the State pass). Now "new" getTypeId puts types into the typeMap recursively
 -- to ensure that all "composite" types are already in the map
-getTypeId :: SpirType -> SpirM SpirId
+-- | Return SpirId for specific type
+getTypeId :: SpirType -> SpirCompiler SpirId
 getTypeId t@(TVector inner _) = getTypeId inner >> getTypeId' t
 getTypeId t@(TPointer _ inner) = getTypeId inner >> getTypeId' t
 getTypeId t@(TFun ret args) =
     getTypeId ret >> mapM_ getTypeId args >> getTypeId' t
 getTypeId t@(TStruct sName _isUniform) = do
-    fieldDefs <- asks (Map.! sName)
+    fieldDefs <- gets $ (Map.! sName) . _structDefs
     mapM_ getTypeId (trdTriple <$> fieldDefs)
     getTypeId' t
 getTypeId t = getTypeId' t
 
-getTypeId' :: SpirType -> SpirM SpirId
+getTypeId' :: SpirType -> SpirCompiler SpirId
 getTypeId' t = do
     typeIds <- gets _typeIds
     swap1_3 maybe return (Map.lookup t typeIds) $ do
@@ -330,31 +596,34 @@ getTypeId' t = do
         modify $ \st -> st { _typeIds = typeIds' }
         return tVar
 
-nextVar :: SpirM String
-nextVar = do
-    (x, xs) <- gets (fromInfiniteList . _varSupply)
-    modify $ \s -> s { _varSupply = xs }
-    return x
-
-buildVar :: (String -> String) -> SpirM String
-buildVar f = fmap f nextVar
-
--- walk types
-typesToOps :: StructDefMap SpirType -> TypeIdsMap -> [SpirOp]
-typesToOps structDefs typeIds = flip fmap (Map.toList typeIds) $
-    \(t, var) -> case t of
-        TBool -> OpTypeBool var
-        TInt -> OpTypeInt var 32 True
-        TUnsignedInt -> OpTypeInt var 32 False
-        TFloat -> OpTypeFloat var 32
-        TVector t' size -> OpTypeVector var (typeIds Map.! t') size
-        TVoid -> OpTypeVoid var
-        TPointer storage t' -> OpTypePointer var storage (typeIds Map.! t')
-        TFun ret args ->
-            OpTypeFunction var (typeIds Map.! ret) ((typeIds Map.!) <$> args)
-        TStruct sName _isUniform -> OpTypeStruct var $
-            (typeIds Map.!) . trdTriple <$> (structDefs Map.! sName)
+-- | Generate code for all types used by the functions
+typesToOps :: SpirCompiler [SpirOp]
+typesToOps = do
+    typeIds    <- gets _typeIds
+    structDefs <- gets _structDefs
+    types <- forM (Map.toList typeIds) $
+        \(t, var) -> case t of
+            TBool -> return [OpTypeBool var]
+            TInt -> return [OpTypeInt var 32 True]
+            TUnsignedInt -> return [OpTypeInt var 32 False]
+            TFloat -> return [OpTypeFloat var 32]
+            TVector t' size -> return [OpTypeVector var (typeIds Map.! t') size]
+            TArray t' size -> do
+                iVar     <- SpirId <$> nextVar
+                let unsignedNotInMap = isNothing (Map.lookup TUnsignedInt typeIds)
+                uintType <- getTypeId TUnsignedInt
+                return $ [ OpTypeInt uintType 32 False | unsignedNotInMap ] ++
+                         [ OpConstant iVar uintType (SCUnsigned size)
+                         , OpTypeArray var (typeIds Map.! t') iVar ]
+            TVoid -> return [OpTypeVoid var]
+            TPointer storage t' -> return [OpTypePointer var storage (typeIds Map.! t')]
+            TFun ret args -> return
+                [OpTypeFunction var (typeIds Map.! ret) ((typeIds Map.!) <$> args)]
+            TStruct sName _isUniform -> return
+                [OpTypeStruct var $ (typeIds Map.!) . trdTriple <$> (structDefs Map.! sName)]
+    return (concat types)
 
 -- courtesy of https://stackoverflow.com/a/12131896
+-- | Swaps first and third argument of a function
 swap1_3 :: (a -> b -> c -> d) -> (b -> c -> a -> d)
 swap1_3 = (flip .) . flip

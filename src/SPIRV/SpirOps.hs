@@ -50,11 +50,14 @@ data SpirOp = OpFunction SpirId SpirId SpirFunctionControl SpirId
             | OpTypeInt SpirId Int Bool
             | OpTypeFloat SpirId Int
             | OpTypeVector SpirId SpirId Int
+            | OpTypeArray SpirId SpirId SpirId
             | OpTypeStruct SpirId [SpirId]
             | OpTypePointer SpirId SpirStorageClass SpirId
             | OpTypeFunction SpirId SpirId [SpirId]
 
-            | OpMemberDecorate SpirId Int SpirDecoration [Int]
+            | OpDecorate SpirId SpirDecoration [Int]
+            | OpMemberDecorate SpirId Int SpirDecoration [Either Int SpirBuiltIn]
+            | OpEntryPoint SpirExecutionModel SpirId String [SpirId]
             deriving Eq
 
 data SpirConst = SCFloat Double
@@ -65,13 +68,32 @@ data SpirConst = SCFloat Double
 data SpirFunctionControl = FCNone | FCInline | FCDontInline | FCPure | FCConst
                          deriving Eq
 
-data SpirStorageClass = StorFunction deriving (Eq, Ord) -- and other
+data SpirStorageClass = StorFunction 
+                      | StorInput
+                      | StorOutput
+                      | StorUniform
+                      | StorUniformConstant
+                      deriving (Eq, Ord) -- and other
 
 data SpirLoopControl = LCNone | LCUnroll | LCDontUnroll deriving Eq -- and other
 
 data SpirSelectionControl = SelCtrNone | SelCtrFlatten | SelCtrDontFlatten deriving Eq
 
-data SpirDecoration = Block | Offset deriving (Eq, Ord, Show)
+data SpirDecoration = Block 
+                    | Offset 
+                    | Location 
+                    | Binding 
+                    | DescriptorSet
+                    | BuiltIn
+                    deriving (Eq, Show)
+
+data SpirBuiltIn = Position
+                 | PointSize
+                 | ClipDistance
+                 | CullDistance
+                 deriving (Eq, Show)
+
+data SpirExecutionModel = Vertex | Fragment deriving (Eq, Show)
 
 -- SHOWS
 instance Show SpirId where
@@ -153,16 +175,24 @@ instance Show SpirOp where
     show (OpTypeFloat res width) = show res ++ " = OpTypeFloat " ++ show width 
     show (OpTypeVector res t size) = 
         show res ++ " = OpTypeVector " ++ show t ++ " " ++ show size
+    show (OpTypeArray res t size) =
+        show res ++ " = OpTypeArray " ++ show t ++ " " ++ show size
     show (OpTypeStruct res fieldTypes) =
         showOpWithResult res "OpTypeStruct" fieldTypes
     show (OpTypePointer res storage t) = 
         show res ++ " = OpTypePointer " ++ show storage ++ " " ++ show t
     show (OpTypeFunction res resT argTypes) = 
         showOpWithResult res "OpTypeFunction" (resT:argTypes)
+    show (OpDecorate targetId decoration decArgs) =
+        "OpDecorate " ++ show targetId ++ " " ++ show decoration ++ " " ++
+        (if null decArgs then "" else " ") ++ unwords (show <$> decArgs)
     show (OpMemberDecorate typeId memberId decoration decArgs) =
         "OpMemberDecorate " ++ show typeId ++ " " ++ show memberId ++ 
         " " ++ show decoration ++ 
-        (if null decArgs then "" else " ") ++ unwords (show <$> decArgs)
+        (if null decArgs then "" else " ") ++ unwords (either show show <$> decArgs)
+    show (OpEntryPoint execModel entryPointId entryPointName args) =
+        "OpEntryPoint " ++ show execModel ++ " " ++ show entryPointId ++ 
+        " \"" ++ entryPointName ++ "\" " ++ unwords (show <$> args)
 
 showOpWithResult :: SpirId -> String -> [SpirId] -> String
 showOpWithResult resId opName args = show resId ++ " = " ++ opName ++ 
@@ -182,7 +212,11 @@ instance Show SpirConst where
     show (SCUnsigned ui) = show ui
 
 instance Show SpirStorageClass where
-    show StorFunction = "Function"
+    show StorFunction        = "Function"
+    show StorInput           = "Input"
+    show StorOutput          = "Output"
+    show StorUniform         = "Uniform"
+    show StorUniformConstant = "UniformConstant"
 
 instance Show SpirLoopControl where
     show LCNone = "None"

@@ -73,7 +73,7 @@ aggregateOffsets offset index spirId = \case
         (size, align) <- tryDecorateOffset ty
         let aligned    = offset + padding align
             nextOffset = aligned + size
-        output $ OpMemberDecorate spirId index Offset [aligned]
+        output $ OpMemberDecorate spirId index Offset [Left aligned]
         aggregateOffsets nextOffset (index + 1) spirId t
     []   -> return $ offset + padding 16
     where

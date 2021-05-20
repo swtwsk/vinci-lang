@@ -18,8 +18,9 @@ import qualified Frontend.AST as F
 import Frontend.TranspileAST (transpile)
 import SSA.CPStoSSA (cpsToSSA)
 import SSA.OptimizeAndPrepare (optimizeAndPrepare)
+import SPIRV.SpirManager (spirToLines)
 import SPIRV.SSAtoSPIR (ssaToSpir)
-import SpirDemo (compileToDemoSpir)
+import SpirDemo (compileToDemoSpir, compileToDemo2Spir)
 
 type ParseFun a = [Token] -> Either String a
 type FileName   = String
@@ -51,7 +52,7 @@ usage = do
         ]
     exitFailure
 
-data OutputType = Frontend | Core | LiftedCore | TCCore | CPS | SSA | SPIRV | FullSPIRV
+data OutputType = Frontend | Core | LiftedCore | TCCore | CPS | SSA | SPIRV | Demo2 | FullSPIRV
 
 compilationFunction :: OutputType -> (F.Program -> String)
 compilationFunction outputType = case outputType of
@@ -68,12 +69,16 @@ typeCheckAndCompile outputType progs = case tcCoreManager progs of
         CPS        -> show . coreToCPS $ CM.map lambdaLiftProgs typeChecked
         SSA        -> unlines . (show <$>) . optimizeAndPrepare $
               fst . cpsToSSA . coreToCPS $ CM.map lambdaLiftProgs typeChecked
-        SPIRV      -> unlines . (show <$>) . uncurry (++) . ssaToSpir . first optimizeAndPrepare $ 
+        SPIRV      -> unlines . spirToLines . ssaToSpir . first optimizeAndPrepare $ 
             cpsToSSA . coreToCPS $ CM.map lambdaLiftProgs typeChecked
+        Demo2      ->
+            let spirManager = ssaToSpir . first optimizeAndPrepare $
+                    cpsToSSA . coreToCPS $ CM.map lambdaLiftProgs typeChecked in
+            compileToDemo2Spir spirManager
         FullSPIRV  ->
-            let (constsTypes, fnOps) = ssaToSpir . first optimizeAndPrepare $ 
+            let spirManager = ssaToSpir . first optimizeAndPrepare $ 
                      cpsToSSA . coreToCPS $ CM.map lambdaLiftProgs typeChecked in
-            compileToDemoSpir constsTypes fnOps
+            compileToDemoSpir spirManager
         _ -> "Error?"
 
 parseFile :: OutputType -> FileName -> IO ()
@@ -99,4 +104,5 @@ main = do
         "-k":fs    -> mapM_ (parseFile CPS) fs
         "-s":fs    -> mapM_ (parseFile SSA) fs
         "-v":fs    -> mapM_ (parseFile SPIRV) fs
+        "-2":fs    -> mapM_ (parseFile Demo2) fs
         fs         -> mapM_ (parseFile FullSPIRV) fs

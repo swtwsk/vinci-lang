@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: bd1a9e6ff4988d2bc1c3b4125289abea83bfd95641e5f14e7f4926002dbb0ead
+-- hash: a696006725add0350a3b32bb66e9a5ac39e6ad4a38791681b97eb511ed6da396
 
 name:           vinci-lang
 version:        0.1.0.0
@@ -51,6 +51,8 @@ library
       Parser.ParVinci
       Parser.PrintVinci
       SPIRV.DecorateOffsets
+      SPIRV.SpirCompilerMonad
+      SPIRV.SpirManager
       SPIRV.SpirOps
       SPIRV.SSAtoSPIR
       SPIRV.Types

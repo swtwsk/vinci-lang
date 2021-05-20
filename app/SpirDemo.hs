@@ -1,11 +1,18 @@
-module SpirDemo (compileToDemoSpir) where
+module SpirDemo (compileToDemoSpir, compileToDemo2Spir) where
 
-import SPIRV.SpirOps
+import SPIRV.SpirManager
 
-compileToDemoSpir :: [SpirOp] -> [SpirOp] -> String
-compileToDemoSpir constsTypes fnOps = 
-    unlines shaderPrologue ++ unlines (show <$> constsTypes) ++ 
-    unlines shaderMain ++ "\n" ++ unlines (show <$> fnOps)
+compileToDemoSpir :: SpirManager -> String
+compileToDemoSpir sm = 
+    unlines shaderPrologue ++ unlines (show <$> _constants sm) ++ 
+    unlines shaderMain ++ "\n" ++ unlines (show <$> _functions sm)
+
+compileToDemo2Spir :: SpirManager -> String
+compileToDemo2Spir sm = 
+    unlines shaderPrologue2 ++ unlines (show <$> _opEntryPoints sm) ++
+    unlines shaderPrologue3 ++ unlines (show <$> _annotations sm) ++
+    unlines (show <$> _typeDeclarations sm) ++ unlines (show <$> _constants sm) ++
+    unlines (show <$> _globalVariables sm) ++ unlines (show <$> _functions sm)
 
 shaderPrologue :: [String]
 shaderPrologue = 
@@ -65,6 +72,28 @@ shaderPrologue =
     , "%_ptr_Output_v4float = OpTypePointer Output %v4float"
     , "   %outColor = OpVariable %_ptr_Output_v4float Output"
     , "    %float_1 = OpConstant %float 1"
+    ]
+
+shaderPrologue2 :: [String]
+shaderPrologue2 = 
+    [ "; SPIR-V"
+    , "; Version: 1.0"
+    , "; Generator: Google Shaderc over Glslang; 10"
+    , "; Bound: 59"
+    , "; Schema: 0"
+    , "               OpCapability Shader"
+    , "               OpCapability VariablePointers"
+    , "          %1 = OpExtInstImport \"GLSL.std.450\""
+    , "               OpMemoryModel Logical GLSL450"
+    ]
+    -- , "               OpEntryPoint Fragment %main \"main\" %fragColor %outColor"
+shaderPrologue3 :: [String]
+shaderPrologue3 =
+    -- [ "               OpExecutionMode %main OriginUpperLeft"
+    [ "               OpSource GLSL 450"
+    , "               OpSourceExtension \"GL_ARB_separate_shader_objects\""
+    , "               OpSourceExtension \"GL_GOOGLE_cpp_style_line_directive\""
+    , "               OpSourceExtension \"GL_GOOGLE_include_directive\""
     ]
 
 shaderMain :: [String]

@@ -1,0 +1,31 @@
+struct UniformBufferObject {
+    u_time : Float
+};;
+
+struct Uniforms {
+    @[binding = 0] ubo : UniformBufferObject
+};;
+
+struct FragIns {
+    @[location = 0] fragColor : Vec4,
+    @[location = 1] fragTexCoord : Vec2
+};;
+
+struct FragOuts {
+    @[location = 0] outColor : Vec4
+};;
+
+let frag (u : Uniforms) (ins : FragIns) -> FragOuts =
+    let (x, y) = ins.fragTexCoord in
+    let time = u.ubo.u_time in
+    let (x2, y2) = (x + time * 0.1, y - time * 0.2) in
+    let (x3, y3) = (x2 * 10.0, y2 * 10.0) in
+    let t = (floor x3 + floor y3) % 2.0 in
+    FragOuts {
+        outColor = (t, t, t, 1.0)
+    }
+;;
+
+let func (r : Float) (g : Float) (b : Float) (t : Float) -> Vec3 =
+    (fabs (sin (r + t)), fabs (cos (g + t)), (b + t - 0.2) % 2.0)
+;;
