@@ -57,9 +57,14 @@ varId n t = VarId n (Identity t)
 progId :: Prog f -> VarName
 progId (Prog fId _ _) = _varName fId
 
-resType :: Type -> Type
-resType (TFun _ t2) = resType t2
-resType t = t
+resType :: Int -> Type -> Maybe Type
+resType argCount t@(TFun _ t2)
+    | argCount == 0 = pure t
+    | argCount > 0  = resType (argCount - 1) t2
+    | otherwise     = Nothing
+resType argCount t
+    | argCount == 0 = pure t
+    | otherwise     = Nothing
 
 -- VARID EQ
 instance Eq (VarId f) where

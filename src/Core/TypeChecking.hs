@@ -65,7 +65,10 @@ tcProg' p@(Prog (VarId fName (Just fType)) args e) = do
         args''    = uncurry Var' <$> typedArgs
         argMap    = Map.fromList typedArgs
     (e', t') <- local (first $ Map.union argMap . Map.insert fName fType) (tc' e)
-    _ <- checkEqOrThrow (resType fType) t' (" in function " ++ show p)
+    returnType <- case resType (length args) fType of
+        Just t -> return t
+        Nothing -> throwError $ "Argument count and function type for " ++ show p ++ " is not aligned"
+    _ <- checkEqOrThrow returnType t' (" in function " ++ show p)
     return (Prog (Var' fName fType) args'' e', fType)
 tcProg' p = throwError $ "Expected type for function " ++ show (progId p)
 
