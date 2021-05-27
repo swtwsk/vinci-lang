@@ -65,7 +65,12 @@ removePhiStmt (SGoto l) = do
         modify $ second (Map.insert l lb')
     return (SGoto l)
 removePhiStmt (SReturn e) = SReturn <$> removePhiExpr e
-removePhiStmt (SIf sf e l1 l2) = (\e' -> SIf sf e' l1 l2) <$> removePhiExpr e
+removePhiStmt (SIf sf e l1 l2) = do
+    e' <- removePhiExpr e
+    g1 <- removePhiStmt (SGoto l1)
+    g2 <- removePhiStmt (SGoto l2)
+    let (SGoto l1', SGoto l2') = (g1, g2)
+    return $ SIf sf e' l1' l2'
 
 removePhiExpr :: SExpr -> RemovePhiM SExpr
 removePhiExpr (SVar v) = SVar <$> getVarAfterRemove v
