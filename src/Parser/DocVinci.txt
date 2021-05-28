@@ -126,12 +126,14 @@ All other symbols are terminals.
   |  |  **|**  | //Expr// ``,`` //[Expr]//
   | //[LambdaVI]// | -> | //LambdaVI//
   |  |  **|**  | //LambdaVI// ``,`` //[LambdaVI]//
-  | //[FieldDef]// | -> | //FieldDef//
+  | //[FieldDef]// | -> | **eps**
+  |  |  **|**  | //FieldDef//
   |  |  **|**  | //FieldDef// ``,`` //[FieldDef]//
   | //ProcName// | -> | //VIdent//
   | //StructDef// | -> | ``struct`` //SIdent// //[TPolyIdent]// ``{`` //[FieldDecl]// ``}``
   | //FieldDecl// | -> | //Attr// //VIdent// ``:`` //Type//
-  | //[FieldDecl]// | -> | //FieldDecl//
+  | //[FieldDecl]// | -> | **eps**
+  |  |  **|**  | //FieldDecl//
   |  |  **|**  | //FieldDecl// ``,`` //[FieldDecl]//
   | //[TPolyIdent]// | -> | **eps**
   |  |  **|**  | //TPolyIdent// //[TPolyIdent]//

@@ -63,7 +63,7 @@ FieldDef.   FieldDef ::= VIdent "=" Expr ;
 
 separator nonempty Expr "," ;
 separator nonempty LambdaVI "," ;
-separator nonempty FieldDef "," ;
+separator FieldDef "," ;
 coercions Expr 8 ;
 
 ProcNameId. ProcName ::= VIdent ;
@@ -71,7 +71,7 @@ ProcNameId. ProcName ::= VIdent ;
 -- Types --
 SDef.       StructDef ::= "struct" SIdent [TPolyIdent] "{" [FieldDecl] "}" ;
 FieldDecl.  FieldDecl ::= Attr VIdent ":" Type ;
-separator nonempty FieldDecl "," ;
+separator FieldDecl "," ;
 separator TPolyIdent "" ;
 
 TInt.       Type1    ::= "Int" ;

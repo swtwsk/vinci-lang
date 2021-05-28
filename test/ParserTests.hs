@@ -107,6 +107,8 @@ structTests = testGroup "Struct"
     , testCase "Transpiled Struct declaration" $ assertTranspiledProgram declareLine declareASTLine
     , testCase "Struct with attribute declaration" $ assertProgram declareLocation declareAbsLocation 
     , testCase "Transpiled Struct with attribute declaration" $ assertTranspiledProgram declareLocation declareASTLocation 
+    , testCase "Empty struct" $ assertProgram emptyStructLine emptyStructAbsLine
+    , testCase "Empty struct" $ assertTranspiledProgram emptyStructLine emptyStructASTLine
     , testCase "Named constructor" $ assertProgram constructLine constructAbsLine
     , testCase "Transpiled named constructor" $ assertTranspiledProgram constructLine constructASTLine
     , testCase "Function returning an unnamed constructor" $ assertProgram returnLine returnAbsLine
@@ -120,6 +122,9 @@ structTests = testGroup "Struct"
         declareLocation = "struct MyStruct {\n @[location = 0] x : Float, @[ binding   =1] y : Float, z : Float \n}\n;;"
         declareAbsLocation = Abs.Prog Nothing [Abs.StructDecl Nothing (Abs.SDef Nothing (Abs.SIdent "MyStruct") [] [Abs.FieldDecl Nothing (Abs.Attr Nothing $ Abs.AttrString "[location = 0]") (Abs.VIdent "x") (Abs.TFloat Nothing), Abs.FieldDecl Nothing (Abs.Attr Nothing $ Abs.AttrString "[ binding   =1]") (Abs.VIdent "y") (Abs.TFloat Nothing), Abs.FieldDecl Nothing (Abs.NoAttr Nothing) (Abs.VIdent "z") (Abs.TFloat Nothing)])]
         declareASTLocation = Prog [StructDecl $ SDef "MyStruct" [] [FieldDecl "x" TFloat (Just $ Location 0), FieldDecl "y" TFloat (Just $ Binding 1), FieldDecl "z" TFloat Nothing]]
+        emptyStructLine = "struct MyStruct { };;"
+        emptyStructAbsLine = Abs.Prog Nothing [Abs.StructDecl Nothing (Abs.SDef Nothing (Abs.SIdent "MyStruct") [] [])]
+        emptyStructASTLine = Prog [StructDecl $ SDef "MyStruct" [] []]
         constructLine = "let res = MyStruct { field1 = True, outs=(a, b, 0.123)\n};;"
         constructAbsLine = Abs.Prog Nothing [Abs.Value Nothing (Abs.Let Nothing [Abs.ConstBind Nothing (Abs.LetLVI Nothing (Abs.LambdaVId Nothing (Abs.VIdent "res"))) (Abs.ECons Nothing (Abs.SIdent "MyStruct") [Abs.FieldDef Nothing (Abs.VIdent "field1") (Abs.ETrue Nothing), Abs.FieldDef Nothing (Abs.VIdent "outs") (Abs.ETuple Nothing (Abs.EId Nothing (Abs.VIdent "a")) [Abs.EId Nothing (Abs.VIdent "b"), Abs.EFloat Nothing 0.123])])])]
         constructASTLine = Prog [Value (Let [ConstBind (LambdaVId "res") (ECons "MyStruct" [FieldDef "field1" ETrue, FieldDef "outs" (ETuple [EId "a", EId "b", EFloat 0.123])])])]
