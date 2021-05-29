@@ -118,17 +118,7 @@ coreExprToCPS (Core.UnOp op expr) k = do
     coreExprToCPS expr kprim
 coreExprToCPS (Core.BinOp op e1 e2) k = do
     (_, resName) <- nextVar
-    let opT = case op of
-            OpAdd -> CPS.CTFloat
-            OpMul -> CPS.CTFloat
-            OpSub -> CPS.CTFloat
-            OpDiv -> CPS.CTFloat
-            OpMod -> CPS.CTFloat
-            OpAnd -> CPS.CTBool
-            OpOr  -> CPS.CTBool
-            OpLT  -> CPS.CTBool
-            OpEq  -> CPS.CTBool
-    let resVar = CPS.Var resName opT
+    let resVar = CPS.Var resName (coreOpType op)
     kApplied <- k resVar
     let k2 z1 z2 = return $ CPS.CLetPrim resVar (CPS.CBinOp op) [z1, z2] kApplied
     let k1 z1 = coreExprToCPS e2 $ k2 z1
@@ -199,17 +189,7 @@ coreExprToCPSWithCont (Core.UnOp op expr) k = do
     coreExprToCPS expr kprim
 coreExprToCPSWithCont (Core.BinOp op e1 e2) k = do
     (_, resName) <- nextVar
-    let opT = case op of
-            OpAdd -> CPS.CTFloat
-            OpMul -> CPS.CTFloat
-            OpSub -> CPS.CTFloat
-            OpDiv -> CPS.CTFloat
-            OpMod -> CPS.CTFloat
-            OpAnd -> CPS.CTBool
-            OpOr  -> CPS.CTBool
-            OpLT  -> CPS.CTBool
-            OpEq  -> CPS.CTBool
-        resVar = CPS.Var resName opT
+    let resVar = CPS.Var resName (coreOpType op)
         kApplied = CPS.CAppCont k resVar
         k2 z1 z2 = return $ CPS.CLetPrim resVar (CPS.CBinOp op) [z1, z2] kApplied
         k1 z1 = coreExprToCPS e2 $ k2 z1
@@ -266,6 +246,22 @@ coreTypeTranslation (Core.TFun t1 t2) =
 coreTypeTranslation (Core.TTuple t i) = CPS.CTTuple (coreTypeTranslation t) i
 coreTypeTranslation (Core.TStruct sName) = CPS.CTStruct sName
 coreTypeTranslation Core.TDummy = undefined
+
+coreOpType :: BinOp -> CPS.CType
+coreOpType op = case op of
+    OpAdd   -> CPS.CTFloat
+    OpMul   -> CPS.CTFloat
+    OpSub   -> CPS.CTFloat
+    OpDiv   -> CPS.CTFloat
+    OpMod   -> CPS.CTFloat
+    OpAnd   -> CPS.CTBool
+    OpOr    -> CPS.CTBool
+    OpEq    -> CPS.CTBool
+    OpNotEq -> CPS.CTBool
+    OpLT    -> CPS.CTBool
+    OpLTEq  -> CPS.CTBool
+    OpGT    -> CPS.CTBool
+    OpGTEq  -> CPS.CTBool
 
 extractTypeFromCExpr :: CPS.CExpr -> Reader (Map.Map String CPS.CType) CPS.CType
 extractTypeFromCExpr (CPS.CLetVal (CPS.Var x t) _ e) = 

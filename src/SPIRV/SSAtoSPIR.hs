@@ -498,8 +498,17 @@ exprToSpir (SBinOp op e1 e2) = do
         (OpEq, TBool)   -> OpLogicalEqual v boolType t1 t2
         (OpEq, TInt)    -> OpIEqual v boolType t1 t2
         (OpEq, TFloat)  -> OpFOrdEqual v boolType t1 t2
+        (OpNotEq, TBool) -> OpLogicalNotEqual v boolType t1 t2
+        (OpNotEq, TInt)    -> OpINotEqual v boolType t1 t2
+        (OpNotEq, TFloat)  -> OpFOrdNotEqual v boolType t1 t2
         (OpLT, TInt)    -> OpSLessThan v boolType t1 t2
         (OpLT, TFloat)  -> OpFOrdLessThan v boolType t1 t2
+        (OpLTEq, TInt)    -> OpSLessThanEqual v boolType t1 t2
+        (OpLTEq, TFloat)  -> OpFOrdLessThanEqual v boolType t1 t2
+        (OpGT, TInt)    -> OpSGreaterThan v boolType t1 t2
+        (OpGT, TFloat)  -> OpFOrdGreaterThan v boolType t1 t2
+        (OpGTEq, TInt)    -> OpSGreaterThanEqual v boolType t1 t2
+        (OpGTEq, TFloat)  -> OpFOrdGreaterThanEqual v boolType t1 t2
         (OpAnd, _) -> OpLogicalAnd v boolType t1 t2
         (OpOr, _)  -> OpLogicalOr v boolType t1 t2
         _ -> undefined

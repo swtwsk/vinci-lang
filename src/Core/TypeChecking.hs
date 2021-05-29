@@ -193,15 +193,21 @@ checkEqOrThrowFn t1 t2 f err = if t1 == t2
 
 checkNumBinOp :: BinOp -> TExpr -> TExpr -> Type -> TCM (TExpr, Type)
 checkNumBinOp op e1 e2 t = case op of
-    OpAdd -> return (BinOp op e1 e2, t)
-    OpMul -> return (BinOp op e1 e2, t)
-    OpSub -> return (BinOp op e1 e2, t)
-    OpDiv -> return (BinOp op e1 e2, t)
-    OpMod -> return (BinOp op e1 e2, t)
-    OpEq -> return (BinOp op e1 e2, TBool)
-    OpLT -> return (BinOp op e1 e2, TBool)
+    OpAdd   -> retT t
+    OpMul   -> retT t
+    OpSub   -> retT t
+    OpDiv   -> retT t
+    OpMod   -> retT t
+    OpEq    -> retT TBool
+    OpNotEq -> retT TBool
+    OpLT    -> retT TBool
+    OpLTEq  -> retT TBool
+    OpGT    -> retT TBool
+    OpGTEq  -> retT TBool
     _ -> throwError $ 
             "Expected operation on numbers, got " ++ show op ++ " instead"
+    where
+        retT t' = return (BinOp op e1 e2, t')
 
 checkBoolBinOp :: BinOp -> TExpr -> TExpr -> TCM (TExpr, Type)
 checkBoolBinOp op e1 e2 = case op of

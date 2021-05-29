@@ -78,10 +78,15 @@ eval' (BinOp op e1 e2) = do
         binOp (VFloat _) (VFloat 0.0) OpDiv = throwError "Division by zero"
         binOp (VFloat a) (VFloat b) OpDiv   = return . VFloat $ a / b
         binOp (VFloat a) (VFloat b) OpEq    = return . VBool $ a == b
+        binOp (VFloat a) (VFloat b) OpNotEq = return . VBool $ a /= b
         binOp (VFloat a) (VFloat b) OpLT    = return . VBool $ a < b
-        binOp (VBool a) (VBool b) OpOr  = return . VBool $ a || b
-        binOp (VBool a) (VBool b) OpAnd = return . VBool $ a && b
-        binOp (VBool a) (VBool b) OpEq  = return . VBool $ a == b
+        binOp (VFloat a) (VFloat b) OpLTEq  = return . VBool $ a <= b
+        binOp (VFloat a) (VFloat b) OpGT    = return . VBool $ a > b
+        binOp (VFloat a) (VFloat b) OpGTEq  = return . VBool $ a >= b
+        binOp (VBool a) (VBool b) OpOr    = return . VBool $ a || b
+        binOp (VBool a) (VBool b) OpAnd   = return . VBool $ a && b
+        binOp (VBool a) (VBool b) OpEq    = return . VBool $ a == b
+        binOp (VBool a) (VBool b) OpNotEq = return . VBool $ a /= b
         binOp _ _ _ = throwError "Unexpected error"
 eval' (UnOp op e) = do
     e' <- eval' e

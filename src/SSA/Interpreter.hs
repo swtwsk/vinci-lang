@@ -119,8 +119,13 @@ runExpr (SBinOp op e1 e2) = do
         (OpAnd, VBool b1, VBool b2)   -> return . VBool $ b1 && b2
         (OpOr, VBool b1, VBool b2)    -> return . VBool $ b1 || b2
         (OpEq, VFloat f1, VFloat f2)  -> return . VBool $ f1 == f2
+        (OpNotEq, VFloat f1, VFloat f2) -> return . VBool $ f1 /= f2
         (OpEq, VBool b1, VBool b2)    -> return . VBool $ b1 == b2
+        (OpNotEq, VBool b1, VBool b2) -> return . VBool $ b1 /= b2
         (OpLT, VFloat f1, VFloat f2)  -> return . VBool $ f1 < f2
+        (OpLTEq, VFloat f1, VFloat f2)  -> return . VBool $ f1 <= f2
+        (OpGT, VFloat f1, VFloat f2)  -> return . VBool $ f1 > f2
+        (OpGTEq, VFloat f1, VFloat f2)  -> return . VBool $ f1 >= f2
         _ -> throwError $ "Cannot do " ++ show op ++ " on " ++ show e1' 
                 ++ " and " ++ show e2'
 runExpr (SUnOp op e) = do

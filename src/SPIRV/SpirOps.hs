@@ -37,10 +37,19 @@ data SpirOp = OpFunction SpirId SpirId SpirFunctionControl SpirId
             | OpSMod SpirId SpirId SpirId SpirId
             | OpFMod SpirId SpirId SpirId SpirId
             | OpIEqual SpirId SpirId SpirId SpirId
+            | OpINotEqual SpirId SpirId SpirId SpirId
             | OpFOrdEqual SpirId SpirId SpirId SpirId
+            | OpFOrdNotEqual SpirId SpirId SpirId SpirId
             | OpSLessThan SpirId SpirId SpirId SpirId
+            | OpSLessThanEqual SpirId SpirId SpirId SpirId
+            | OpSGreaterThan SpirId SpirId SpirId SpirId
+            | OpSGreaterThanEqual SpirId SpirId SpirId SpirId
             | OpFOrdLessThan SpirId SpirId SpirId SpirId
+            | OpFOrdLessThanEqual SpirId SpirId SpirId SpirId
+            | OpFOrdGreaterThan SpirId SpirId SpirId SpirId
+            | OpFOrdGreaterThanEqual SpirId SpirId SpirId SpirId
             | OpLogicalEqual SpirId SpirId SpirId SpirId
+            | OpLogicalNotEqual SpirId SpirId SpirId SpirId
             | OpLogicalOr SpirId SpirId SpirId SpirId
             | OpLogicalAnd SpirId SpirId SpirId SpirId
             | OpLogicalNot SpirId SpirId SpirId
@@ -165,14 +174,32 @@ instance Show SpirOp where
     show (OpSMod res resT a b) = showOpWithResult res "OpSMod" [resT, a, b]
     show (OpFMod res resT a b) = showOpWithResult res "OpFMod" [resT, a, b]
     show (OpIEqual res resT a b) = showOpWithResult res "OpIEqual" [resT, a, b]
+    show (OpINotEqual res resT a b) = 
+        showOpWithResult res "OpINotEqual" [resT, a, b]
     show (OpFOrdEqual res resT a b) = 
         showOpWithResult res "OpFOrdEqual" [resT, a, b]
+    show (OpFOrdNotEqual res resT a b) = 
+        showOpWithResult res "OpFOrdNotEqual" [resT, a, b]
     show (OpSLessThan res resT a b) =
         showOpWithResult res "OpSLessThan" [resT, a, b]
+    show (OpSLessThanEqual res resT a b) =
+        showOpWithResult res "OpSLessThanEqual" [resT, a, b]
+    show (OpSGreaterThan res resT a b) =
+        showOpWithResult res "OpSGreaterThan" [resT, a, b]
+    show (OpSGreaterThanEqual res resT a b) =
+        showOpWithResult res "OpSGreaterThanEqual" [resT, a, b]
     show (OpFOrdLessThan res resT a b) = 
         showOpWithResult res "OpFOrdLessThan" [resT, a, b]
+    show (OpFOrdLessThanEqual res resT a b) =
+        showOpWithResult res "OpFOrdLessThanEqual" [resT, a, b]
+    show (OpFOrdGreaterThan res resT a b) =
+        showOpWithResult res "OpFOrdGreaterThan" [resT, a, b]
+    show (OpFOrdGreaterThanEqual res resT a b) =
+        showOpWithResult res "OpFOrdGreaterThanEqual" [resT, a, b]
     show (OpLogicalEqual res resT a b) = 
         showOpWithResult res "OpLogicalEqual" [resT, a, b]
+    show (OpLogicalNotEqual res resT a b) =
+        showOpWithResult res "OpLogicalNotEqual" [resT, a, b]
     show (OpLogicalOr res resT a b) = 
         showOpWithResult res "OpLogicalOr" [resT, a, b]
     show (OpLogicalAnd res resT a b) = 

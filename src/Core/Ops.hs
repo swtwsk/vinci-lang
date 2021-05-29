@@ -8,7 +8,11 @@ data BinOp = OpAdd
            | OpAnd
            | OpOr
            | OpEq
+           | OpNotEq
            | OpLT
+           | OpLTEq
+           | OpGT
+           | OpGTEq
            deriving (Eq, Ord)
 
 data UnOp = OpNeg 
@@ -17,15 +21,19 @@ data UnOp = OpNeg
 
 instance Show BinOp where
     show op = case op of
-        OpAdd -> "+"
-        OpMul -> "*"
-        OpSub -> "-"
-        OpDiv -> "/"
-        OpMod -> "%"
-        OpAnd -> "and"
-        OpOr  -> "or"
-        OpEq  -> "=="
-        OpLT  -> "<"
+        OpAdd   -> "+"
+        OpMul   -> "*"
+        OpSub   -> "-"
+        OpDiv   -> "/"
+        OpMod   -> "%"
+        OpAnd   -> "and"
+        OpOr    -> "or"
+        OpEq    -> "=="
+        OpNotEq -> "!="
+        OpLT    -> "<"
+        OpLTEq  -> "<="
+        OpGT    -> ">"
+        OpGTEq  -> ">="
 
 instance Show UnOp where
     show op = case op of

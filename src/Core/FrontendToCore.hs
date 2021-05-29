@@ -100,16 +100,13 @@ exprToCore (F.EMod e1 e2) = binOpToCore OpMod e1 e2
 exprToCore (F.EAdd e1 e2) = binOpToCore OpAdd e1 e2
 exprToCore (F.ESub e1 e2) = binOpToCore OpSub e1 e2
 exprToCore (F.ELTH e1 e2) = binOpToCore OpLT e1 e2
-exprToCore (F.ELE e1 e2) = do
-    te1 <- exprToCore e1
-    te2 <- exprToCore e2
-    return $ BinOp OpOr (BinOp OpLT te1 te2) (BinOp OpEq te1 te2)
-exprToCore (F.EGTH e1 e2) = UnOp OpNot <$> exprToCore (F.ELE e1 e2)
-exprToCore (F.EGE e1 e2) = UnOp OpNot <$> exprToCore (F.ELTH e1 e2)
+exprToCore (F.ELE e1 e2)  = binOpToCore OpLTEq e1 e2
+exprToCore (F.EGTH e1 e2) = binOpToCore OpGT e1 e2
+exprToCore (F.EGE e1 e2)  = binOpToCore OpGTEq e1 e2
 exprToCore (F.EEQU e1 e2) = binOpToCore OpEq e1 e2
-exprToCore (F.ENE e1 e2) = UnOp OpNeg <$> binOpToCore OpEq e1 e2
+exprToCore (F.ENE e1 e2)  = binOpToCore OpNotEq e1 e2
 exprToCore (F.EAnd e1 e2) = binOpToCore OpAnd e1 e2
-exprToCore (F.EOr e1 e2) = binOpToCore OpOr e1 e2
+exprToCore (F.EOr e1 e2)  = binOpToCore OpOr e1 e2
 exprToCore (F.ECond cond e1 e2) = 
     If <$> exprToCore cond <*> exprToCore e1 <*> exprToCore e2
 exprToCore (F.ELetIn (F.Let binds) e) = 
