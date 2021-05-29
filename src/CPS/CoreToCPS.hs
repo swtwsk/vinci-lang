@@ -109,18 +109,20 @@ coreExprToCPS (Core.LetFun (Core.Prog (Core.VarId f t) args e1) e2) k = do
     return $ CPS.CLetFun (CPS.CFunDef f' kName cpsArgs e1') e2'
 coreExprToCPS (Core.UnOp op expr) k = do
     (_, resName) <- nextVar
-    let opT = case op of
-            OpNeg -> CPS.CTFloat
+    let opT t = case op of
+            OpNeg -> t
             OpNot -> CPS.CTBool
-    let resVar = CPS.Var resName opT
-    kApplied <- k resVar
-    let kprim x = return $ CPS.CLetPrim resVar (CPS.CUnOp op) [x] kApplied
+        kprim x@(CPS.Var _ ctype) = do
+            let resVar = CPS.Var resName (opT ctype)
+            kApplied <- k resVar
+            return $ CPS.CLetPrim resVar (CPS.CUnOp op) [x] kApplied
     coreExprToCPS expr kprim
 coreExprToCPS (Core.BinOp op e1 e2) k = do
     (_, resName) <- nextVar
-    let resVar = CPS.Var resName (coreOpType op)
-    kApplied <- k resVar
-    let k2 z1 z2 = return $ CPS.CLetPrim resVar (CPS.CBinOp op) [z1, z2] kApplied
+    let k2 z1 z2@(CPS.Var _ ctype) = do
+            let resVar = CPS.Var resName (coreOpType op ctype)
+            kApplied <- k resVar
+            return $ CPS.CLetPrim resVar (CPS.CBinOp op) [z1, z2] kApplied
     let k1 z1 = coreExprToCPS e2 $ k2 z1
     coreExprToCPS e1 k1
 
@@ -180,18 +182,19 @@ coreExprToCPSWithCont (Core.LetFun (Core.Prog (Core.VarId f t) args e1) e2) k = 
     return $ CPS.CLetFun (CPS.CFunDef f' jName cpsArgs e1') e2'
 coreExprToCPSWithCont (Core.UnOp op expr) k = do
     (_, resName) <- nextVar
-    let opT = case op of
-            OpNeg -> CPS.CTFloat
+    let opT t = case op of
+            OpNeg -> t
             OpNot -> CPS.CTBool
-        resVar = CPS.Var resName opT
-        kprim x = return $ 
-            CPS.CLetPrim resVar (CPS.CUnOp op) [x] (CPS.CAppCont k resVar)
+        kprim x@(CPS.Var _ ctype) = do
+            let resVar = CPS.Var resName (opT ctype)
+            return $ CPS.CLetPrim resVar (CPS.CUnOp op) [x] (CPS.CAppCont k resVar)
     coreExprToCPS expr kprim
 coreExprToCPSWithCont (Core.BinOp op e1 e2) k = do
     (_, resName) <- nextVar
-    let resVar = CPS.Var resName (coreOpType op)
-        kApplied = CPS.CAppCont k resVar
-        k2 z1 z2 = return $ CPS.CLetPrim resVar (CPS.CBinOp op) [z1, z2] kApplied
+    let k2 z1 z2@(CPS.Var _ ctype) = do
+            let resVar = CPS.Var resName (coreOpType op ctype)
+                kApplied = CPS.CAppCont k resVar
+            return $ CPS.CLetPrim resVar (CPS.CBinOp op) [z1, z2] kApplied
         k1 z1 = coreExprToCPS e2 $ k2 z1
     coreExprToCPS e1 k1
 
@@ -247,13 +250,13 @@ coreTypeTranslation (Core.TTuple t i) = CPS.CTTuple (coreTypeTranslation t) i
 coreTypeTranslation (Core.TStruct sName) = CPS.CTStruct sName
 coreTypeTranslation Core.TDummy = undefined
 
-coreOpType :: BinOp -> CPS.CType
-coreOpType op = case op of
-    OpAdd   -> CPS.CTFloat
-    OpMul   -> CPS.CTFloat
-    OpSub   -> CPS.CTFloat
-    OpDiv   -> CPS.CTFloat
-    OpMod   -> CPS.CTFloat
+coreOpType :: BinOp -> CPS.CType -> CPS.CType
+coreOpType op t = case op of
+    OpAdd   -> t
+    OpMul   -> t
+    OpSub   -> t
+    OpDiv   -> t
+    OpMod   -> t
     OpAnd   -> CPS.CTBool
     OpOr    -> CPS.CTBool
     OpEq    -> CPS.CTBool
