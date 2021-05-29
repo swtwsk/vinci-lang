@@ -4,6 +4,7 @@ module SPIRV.SpirCompilerMonad
     ( SpirCompiler 
     -- , CompilerException
     , StateEnv(..)
+    , SConst(..)
     , TypeIdsMap
     , runCompiler
     , execCompiler
@@ -40,17 +41,26 @@ newtype SpirCompiler a = SpirCompiler
              , MonadWriter SpirList )
 
 -- type CompilerException = ()
-data StateEnv = StateEnv { _structDefs    :: StructDefMap SpirType
-                         , _typeIds       :: TypeIdsMap
-                         , _renames       :: Map.Map String String
-                         , _phiVars       :: Map.Map String SpirType
-                         , _varSupply     :: [String]
-                         , _entryPoints   :: [SpirOp]
-                         , _globalVars    :: [SpirOp]
-                         , _stAnnotations :: [SpirOp] }
+data StateEnv = StateEnv { _structDefs      :: StructDefMap SpirType
+                         , _typeIds         :: TypeIdsMap
+                         , _renames         :: Map.Map String String
+                         , _phiVars         :: Map.Map String SpirType
+                         , _varSupply       :: [String]
+                         , _entryPoints     :: [SpirOp]
+                         , _extInstImports  :: Map.Map String SpirOp
+                         , _executionModes  :: [SpirOp]
+                         , _globalVariables :: [SpirOp]
+                         , _constants       :: Map.Map SConst (SpirOp, SpirType)
+                         , _annotations     :: [SpirOp] }
 type SpirList = DList SpirOp
 
 type TypeIdsMap = Map.Map SpirType SpirId
+
+data SConst = CFloat Double 
+            | CSignedInt Int 
+            | CUnsignedInt Int 
+            | CBool Bool
+            deriving (Eq, Ord)
 
 runCompiler :: StateEnv -> SpirCompiler a -> (a, StateEnv, SpirList)
 runCompiler stateEnv compiler = (result, finalState, writerOutput)
@@ -71,14 +81,17 @@ evalCompiler = (tripleToPair .) . runCompiler
 
 initialStateEnv :: StructDefMap SpirType -> StateEnv
 initialStateEnv structDefs = StateEnv
-    { _structDefs    = structDefs
-    , _typeIds       = Map.empty
-    , _renames       = Map.empty
-    , _phiVars       = Map.empty
-    , _varSupply     = [show i | i <- [(2 :: Int)..]]
-    , _entryPoints   = []
-    , _globalVars    = []
-    , _stAnnotations = [] }
+    { _structDefs      = structDefs
+    , _typeIds         = Map.empty
+    , _renames         = Map.empty
+    , _phiVars         = Map.empty
+    , _varSupply       = [show i | i <- [(1 :: Int)..]]
+    , _entryPoints     = []
+    , _extInstImports  = Map.empty
+    , _executionModes  = []
+    , _globalVariables = []
+    , _constants       = Map.empty
+    , _annotations   = [] }
 
 nextVar :: SpirCompiler String
 nextVar = do

@@ -25,7 +25,3 @@ let frag (u : Uniforms) (ins : FragIns) -> FragOuts =
         outColor = (t, t, t, 1.0)
     }
 ;;
-
-let func (r : Float) (g : Float) (b : Float) (t : Float) -> Vec3 =
-    (fabs (sin (r + t)), fabs (cos (g + t)), (b + t - 0.2) % 2.0)
-;;

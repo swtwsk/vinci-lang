@@ -19,7 +19,7 @@ import StructDefMap (FieldDef, StructDefMap)
 import SSA.AST
 import SPIRV.DecorateOffsets (decorateOffsets)
 import SPIRV.SpirCompilerMonad
-import SPIRV.SpirManager (SpirManager(..), defaultManager)
+import qualified SPIRV.SpirManager as SpirManager (SpirManager(..), defaultManager)
 import SPIRV.SpirOps
 import SPIRV.Types
 import Utils.Tuple
@@ -29,14 +29,17 @@ type ReturnCallback = SExpr -> SpirCompiler () -> SpirCompiler ()
 -- -----------------------------------------------------------------------------
 -- | Top-level of the SPIR-V code generator
 --
-ssaToSpir :: ([SFnDef], StructDefMap SpirType) -> SpirManager
-ssaToSpir (fnDefs, structDefs) = defaultManager
-    { _typeDeclarations = typeDeclarations
-    , _opEntryPoints    = _entryPoints finalSt
-    , _globalVariables  = _globalVars finalSt
-    , _annotations      = _stAnnotations finalSt ++ decorateOffsets finalStructDef finalTypeIds
-    , _constants        = consts
-    , _functions        = hoistVariables fnOps'
+ssaToSpir :: ([SFnDef], StructDefMap SpirType) -> SpirManager.SpirManager
+ssaToSpir (fnDefs, structDefs) = SpirManager.defaultManager
+    { SpirManager._extInstImports   = snd <$> Map.toList (_extInstImports finalSt)
+    , SpirManager._opEntryPoints    = _entryPoints finalSt
+    , SpirManager._executionModes   = _executionModes finalSt
+    , SpirManager._annotations      = 
+        _annotations finalSt ++ decorateOffsets finalStructDef finalTypeIds
+    , SpirManager._typeDeclarations = typeDeclarations
+    , SpirManager._constants        = fst . snd <$> Map.toList (_constants finalSt)
+    , SpirManager._globalVariables  = _globalVariables finalSt
+    , SpirManager._functions        = hoistVariables (toList ops)
     }
     where
         (frag, vert, rest) = extractMains fnDefs
@@ -49,9 +52,6 @@ ssaToSpir (fnDefs, structDefs) = defaultManager
         finalStructDef = _structDefs finalSt
         finalTypeIds   = _typeIds finalSt
 
-        fnOps            = toList ops
-        (consts, fnOps') = extractConst fnOps
-
 -- | Search for shader entry points
 extractMains :: [SFnDef] -> (Maybe SFnDef, Maybe SFnDef, [SFnDef])
 extractMains = flip foldr (Nothing, Nothing, []) $
@@ -59,14 +59,6 @@ extractMains = flip foldr (Nothing, Nothing, []) $
         "frag" -> (Just f, vert, rest)
         "vert" -> (frag, Just f, rest)
         _      -> (frag, vert, f:rest)
-
--- | Extract constants from generated code - in SPIR-V they should be at the top
-extractConst :: [SpirOp] -> ([SpirOp], [SpirOp])
-extractConst (c@OpConstant {}:t) = first (c:) $ extractConst t
-extractConst (c@OpConstantTrue {}:t) = first (c:) $ extractConst t
-extractConst (c@OpConstantFalse {}:t) = first (c:) $ extractConst t
-extractConst (h:t) = second (h:) $ extractConst t
-extractConst [] = ([], [])
 
 -- | Hoist function-scoped variables to the beginning of the first block
 -- - required from SPIR-V specification
@@ -187,9 +179,13 @@ fragMainToSpir (SFnDef fName rt fArgs block labelled) =
 
             entryPointVarIds <- mapM ((SpirId <$>) . getRenamedVar) $
                         (fstTriple <$> insArgs) ++ (fstTriple <$> outArgs)
-            let entryPoint = OpEntryPoint Fragment (SpirId "main") "main" entryPointVarIds
-            modify $ \st -> st { _entryPoints = entryPoint:_entryPoints st }
-            return (retCallback outCtrVars)
+            let mainId = SpirId "main"
+                entryPoint = OpEntryPoint Fragment mainId "main" entryPointVarIds
+                executionMode = OpExecutionMode mainId OriginUpperLeft
+            modify $ \st -> 
+                st { _entryPoints    = entryPoint:_entryPoints st
+                   , _executionModes = executionMode:_executionModes st }
+            return $ retCallback outCtrVars
 
         processIn  = entryPointArgumentToGlobal StorInput
         processOut = entryPointArgumentToGlobal StorOutput
@@ -255,14 +251,14 @@ entryPointArgumentToUniform ( fieldName
     (_, uniformStructType) <- structToUniformStruct structName
     uniformStructTypeId    <- getTypeId uniformStructType
     let annotation = OpDecorate uniformStructTypeId Block []
-    modify $ \st -> st { _stAnnotations = annotation:_stAnnotations st }
+    modify $ \st -> st { _annotations = annotation:_annotations st }
 
     fieldRenamed   <- getRenamedVar fieldName
     uniformVarType <- getTypeId (TPointer StorUniform uniformStructType)
     let variable = OpVariable (SpirId fieldRenamed) uniformVarType StorUniform
         annotations = getUniformAnnotations b fieldRenamed
-    modify $ \st -> st { _globalVars = variable:_globalVars st
-                       , _stAnnotations = annotations ++ _stAnnotations st }
+    modify $ \st -> st { _globalVariables = variable:_globalVariables st
+                       , _annotations     = annotations ++ _annotations st }
 
     newId <- extractUniformToVariable fieldName structName
     tmpVar <- buildVar ((fieldName ++) . ('_':))
@@ -294,8 +290,8 @@ entryPointArgumentToGlobal' sc annotationsFn fieldName fType = do
     varType <- getTypeId (TPointer sc fType)
     let variable    = OpVariable (SpirId fieldRenamed) varType sc
         annotations = annotationsFn fieldRenamed
-    modify $ \st -> st { _globalVars    = variable:_globalVars st
-                       , _stAnnotations = annotations ++ _stAnnotations st }
+    modify $ \st -> st { _globalVariables = variable:_globalVariables st
+                       , _annotations     = annotations ++ _annotations st }
     return $ Var fieldName fType
 
 predefinedVertexOutputId :: String
@@ -312,8 +308,8 @@ processPredefinedVertexOutputs = do
                       , OpMemberDecorate outputStructType 1 BuiltIn [Right PointSize]
                       , OpMemberDecorate outputStructType 2 BuiltIn [Right ClipDistance]
                       , OpMemberDecorate outputStructType 3 BuiltIn [Right CullDistance] ]
-    modify $ \st -> st { _globalVars    = variable:_globalVars st
-                       , _stAnnotations = annotations ++ _stAnnotations st }
+    modify $ \st -> st { _globalVariables = variable:_globalVariables st
+                       , _annotations     = annotations ++ _annotations st }
     insertRenamed predefinedVertexOutputId predefinedVertexOutputId
     return predefinedVertexOutputId
 
@@ -322,15 +318,13 @@ processPredefinedVertexOutput var (fieldName, Nothing, fType) = do
     let structName = "gl_PerVertex"
     fieldList <- gets $ (Map.! structName) . _structDefs
     let i = fromMaybe undefined (elemIndex fieldName (fstTriple <$> fieldList))
+    (iVar, _) <- getConstId (CSignedInt i)
 
-    vars <- replicateM 2 nextVar
-    let [iVar, resVar] = vars
-    intType <- getTypeId TInt
+    resVar <- nextVar
     var' <- SpirId <$> getRenamedVar var
     ptrVarType <- getTypeId (TPointer StorOutput fType)
 
-    output $ OpConstant (SpirId iVar) intType (SCSigned i)
-    output $ OpAccessChain (SpirId resVar) ptrVarType var' (SpirId iVar)
+    output $ OpAccessChain (SpirId resVar) ptrVarType var' iVar
     insertRenamed resVar resVar
     return (Var resVar fType)
 processPredefinedVertexOutput _ _ = undefined
@@ -459,8 +453,8 @@ exprToSpir (SApp (Var fName fType) args) = do
             argTmps <- replicateM (length args'') nextVar
             zipWithM_ (\arg tmp' -> output (OpLoad tmp' retType arg))
                 args'' (SpirId <$> argTmps)
-            -- TODO: OpExtInst is looking up for "extension", should not be hardcoded
-            output $ OpExtInst tmp retType (SpirId "1") fName' (SpirId <$> argTmps)
+            extInstId <- getExtInstId "GLSL.std.450"
+            output $ OpExtInst tmp retType extInstId fName' (SpirId <$> argTmps)
         Nothing     ->
             output $ OpFunctionCall tmp retType (SpirId fName) args''
     return (tmp, rt)
@@ -473,15 +467,14 @@ exprToSpir (SStructCtr sType vars) = do
 exprToSpir (SStructGet i (Var struct t)) =
     structGetToSpir i struct t StorFunction
 exprToSpir (STupleProj i (Var tuple t)) = do
-    vars <- replicateM 3 nextVar
-    let [iVar, resVar, tmp] = SpirId <$> vars
-    uintType <- getTypeId TUnsignedInt
+    vars <- replicateM 2 nextVar
+    let [resVar, tmp] = SpirId <$> vars
     tuple' <- SpirId <$> getRenamedVar tuple
     let (TVector t' _) = t
     ptrVarType <- getTypeId (TPointer StorFunction t')
     varType <- getTypeId t'
+    (iVar, _) <- getConstId (CUnsignedInt i)
 
-    output $ OpConstant iVar uintType (SCUnsigned i)
     output $ OpAccessChain resVar ptrVarType tuple' iVar
     output $ OpLoad tmp varType resVar
     return (tmp, t')
@@ -522,21 +515,9 @@ exprToSpir (SUnOp op e) = do
         (OpNot, _) -> OpLogicalNot v boolType te
         _ -> undefined
     return (v, t)
-exprToSpir (SLitFloat f) = do
-    v <- SpirId <$> nextVar
-    floatType <- getTypeId TFloat
-    output $ OpConstant v floatType (SCFloat f)
-    return (v, TFloat)
-exprToSpir (SLitBool b) = do
-    v <- SpirId <$> nextVar
-    boolType <- getTypeId TBool
-    output $ if b then OpConstantTrue v boolType else OpConstantFalse v boolType
-    return (v, TBool)
-exprToSpir (SLitInt i) = do
-    v <- SpirId <$> nextVar
-    intType <- getTypeId TInt
-    output $ OpConstant v intType (SCSigned i)
-    return (v, TInt)
+exprToSpir (SLitFloat f) = getConstId (CFloat f)
+exprToSpir (SLitBool b) = getConstId (CBool b)
+exprToSpir (SLitInt i) = getConstId (CSignedInt i)
 
 -- | Helper function generating "getter" for SPIR-V struct (Composite)
 structGetToSpir :: Int
@@ -545,16 +526,15 @@ structGetToSpir :: Int
                 -> SpirStorageClass
                 -> SpirCompiler (SpirId, SpirType)
 structGetToSpir i structVar outType ptrStorageClass = do
-    vars <- replicateM 3 nextVar
-    let [iVar, resVar, tmp] = SpirId <$> vars
-    intType <- getTypeId TInt
+    vars <- replicateM 2 nextVar
+    let [resVar, tmp] = SpirId <$> vars
     tuple' <- SpirId <$> getRenamedVar structVar
     let (TStruct sName _) = outType
     (_, _, fieldTy) <- gets $ (!! i) . (Map.! sName) . _structDefs
     ptrVarType <- getTypeId (TPointer ptrStorageClass fieldTy)
     varType <- getTypeId fieldTy
+    (iVar, _) <- getConstId (CSignedInt i)
 
-    output $ OpConstant iVar intType (SCSigned i)
     output $ OpAccessChain resVar ptrVarType tuple' iVar
     output $ OpLoad tmp varType resVar
     return (tmp, fieldTy)
@@ -567,6 +547,48 @@ getRenamedLabel (SLabel l) = getRenamedVar (toLabel l)
 -- and normal variables
 toLabel :: String -> String
 toLabel = (ssaToSpirLabelPrefix ++)
+
+-- | Returns `SpirId` for a given extended instruction set
+getExtInstId :: String -> SpirCompiler SpirId
+getExtInstId extInstSetName = gets _extInstImports >>= \ei -> case Map.lookup extInstSetName ei of
+    Just (OpExtInstImport extInstId _) -> return extInstId
+    Just _ -> undefined
+    Nothing -> do
+        extInstId <- SpirId <$> nextVar
+        let extInstImport = OpExtInstImport extInstId extInstSetName
+            insertFn      = Map.insert extInstSetName extInstImport
+        modify $ \st -> st { _extInstImports = insertFn (_extInstImports st) }
+        return extInstId
+
+getConstId :: SConst -> SpirCompiler (SpirId, SpirType)
+getConstId c@(CBool b) = gets _constants >>= \cs -> case Map.lookup c cs of
+    Just (OpConstantTrue constId _, t) -> return (constId, t)
+    Just (OpConstantFalse constId _, t) -> return (constId, t)
+    Just _ -> undefined
+    Nothing -> do
+        constId  <- SpirId <$> nextVar
+        let boolType = TBool
+        boolTypeId <- getTypeId boolType
+        let constant = if b 
+            then OpConstantTrue constId boolTypeId 
+            else OpConstantFalse constId boolTypeId
+        modify $ \st -> st 
+            { _constants = Map.insert c (constant, boolType) (_constants st) }
+        return (constId, boolType)
+getConstId c = gets _constants >>= \cs -> case Map.lookup c cs of
+    Just (OpConstant constId _ _, t)    -> return (constId, t)
+    Just _ -> undefined
+    Nothing -> do
+        constId <- SpirId <$> nextVar
+        ((val, ty), typeId) <- case c of
+            CFloat f       -> ((SCFloat f, TFloat), ) <$> getTypeId TFloat
+            CSignedInt i   -> ((SCSigned i, TInt), ) <$> getTypeId TInt
+            CUnsignedInt i -> ((SCUnsigned i, TUnsignedInt), ) <$> getTypeId TUnsignedInt
+            _ -> undefined
+        let constant = OpConstant constId typeId val
+        modify $ \st -> st 
+            { _constants = Map.insert c (constant, ty) (_constants st) }
+        return (constId, ty)
 
 -- WALKAROUND: Apparently State, Writer and Data.Map get confused when it comes
 -- to sequencing operations.

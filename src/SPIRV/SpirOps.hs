@@ -55,9 +55,13 @@ data SpirOp = OpFunction SpirId SpirId SpirFunctionControl SpirId
             | OpTypePointer SpirId SpirStorageClass SpirId
             | OpTypeFunction SpirId SpirId [SpirId]
 
+            | OpCapability SpirCapability
+            | OpExtInstImport SpirId String
             | OpDecorate SpirId SpirDecoration [Int]
             | OpMemberDecorate SpirId Int SpirDecoration [Either Int SpirBuiltIn]
             | OpEntryPoint SpirExecutionModel SpirId String [SpirId]
+            | OpExecutionMode SpirId SpirExecutionMode
+            | OpMemoryModel SpirAddressingModel SpirMemoryModel
             deriving Eq
 
 data SpirConst = SCFloat Double
@@ -94,6 +98,14 @@ data SpirBuiltIn = Position
                  deriving (Eq, Show)
 
 data SpirExecutionModel = Vertex | Fragment deriving (Eq, Show)
+
+data SpirExecutionMode = OriginUpperLeft | OriginLowerLeft deriving (Eq, Show)
+
+data SpirCapability = Shader | VariablePointers deriving (Eq, Show)
+
+data SpirAddressingModel = Logical deriving (Eq, Show)
+
+data SpirMemoryModel = Simple | GLSL450 deriving (Eq, Show)
 
 -- SHOWS
 instance Show SpirId where
@@ -183,16 +195,23 @@ instance Show SpirOp where
         show res ++ " = OpTypePointer " ++ show storage ++ " " ++ show t
     show (OpTypeFunction res resT argTypes) = 
         showOpWithResult res "OpTypeFunction" (resT:argTypes)
+    show (OpCapability capability) = "OpCapability " ++ show capability
+    show (OpExtInstImport res extendedInstructionSet) =
+        show res ++ " = OpExtInstImport \"" ++ extendedInstructionSet ++ "\""
     show (OpDecorate targetId decoration decArgs) =
         "OpDecorate " ++ show targetId ++ " " ++ show decoration ++ " " ++
         (if null decArgs then "" else " ") ++ unwords (show <$> decArgs)
     show (OpMemberDecorate typeId memberId decoration decArgs) =
         "OpMemberDecorate " ++ show typeId ++ " " ++ show memberId ++ 
-        " " ++ show decoration ++ 
-        (if null decArgs then "" else " ") ++ unwords (either show show <$> decArgs)
+        " " ++ show decoration ++ (if null decArgs then "" else " ") ++ 
+        unwords (either show show <$> decArgs)
     show (OpEntryPoint execModel entryPointId entryPointName args) =
         "OpEntryPoint " ++ show execModel ++ " " ++ show entryPointId ++ 
         " \"" ++ entryPointName ++ "\" " ++ unwords (show <$> args)
+    show (OpExecutionMode entryPointId execMode) = 
+        "OpExecutionMode " ++ show entryPointId ++ " " ++ show execMode
+    show (OpMemoryModel addressing memory) =
+        "OpMemoryModel " ++ show addressing ++ " " ++ show memory
 
 showOpWithResult :: SpirId -> String -> [SpirId] -> String
 showOpWithResult resId opName args = show resId ++ " = " ++ opName ++ 
