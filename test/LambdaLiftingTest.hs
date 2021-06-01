@@ -9,6 +9,7 @@ import qualified Data.Set as Set
 import Core.AST
 import Core.LambdaLifting (lambdaLiftProgs)
 import Core.Ops as Ops (BinOp(..))
+import Core.Types
 
 tests :: TestTree
 tests = testGroup "Lambda lifting tests"

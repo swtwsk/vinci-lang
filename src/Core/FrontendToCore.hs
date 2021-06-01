@@ -16,6 +16,7 @@ import Core.AST
 import Core.CoreManager (CoreBindingsManager (..), TypeSynonymsMap)
 import Core.Ops
 import Core.Toposort (inverselySortTopologically)
+import Core.Types (Type(..))
 import ManglingPrefixes (frontendToCoreVarPrefix)
 import StructDefMap (StructDefMap, StructName, FieldDef)
 import Utils.Tuple (fstTriple)

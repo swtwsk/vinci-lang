@@ -6,6 +6,7 @@ import qualified Data.Map as Map
 
 import Core.AST
 import Core.CoreManager
+import Core.Types (Type(..))
 
 type ExpandM = Reader TypeSynonymsMap
 

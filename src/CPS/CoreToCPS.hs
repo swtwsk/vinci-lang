@@ -14,6 +14,7 @@ import Utils.VarSupply (VarSupply, evalVarSupply, nextVar)
 import qualified Core.AST as Core
 import Core.CoreManager (CoreManager(..))
 import Core.Ops
+import Core.Types as Core (Type(..))
 import Core.Utils (aggregateApplications)
 import qualified CPS.AST as CPS
 import ManglingPrefixes (coreToCPSContPrefix, coreToCPSVarPrefix)
@@ -249,6 +250,7 @@ coreTypeTranslation (Core.TFun t1 t2) =
 coreTypeTranslation (Core.TTuple t i) = CPS.CTTuple (coreTypeTranslation t) i
 coreTypeTranslation (Core.TStruct sName) = CPS.CTStruct sName
 coreTypeTranslation Core.TDummy = undefined
+coreTypeTranslation (Core.TVar _) = undefined
 
 coreOpType :: BinOp -> CPS.CType -> CPS.CType
 coreOpType op t = case op of

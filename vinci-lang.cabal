@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a696006725add0350a3b32bb66e9a5ac39e6ad4a38791681b97eb511ed6da396
+-- hash: efc0d40d2a2118d3d03242a9bd3868b027b969157fbd9fb5d23e1b7b0b9c6ce9
 
 name:           vinci-lang
 version:        0.1.0.0
@@ -37,6 +37,7 @@ library
       Core.Ops
       Core.Toposort
       Core.TypeChecking
+      Core.Types
       Core.Utils
       CPS.AST
       CPS.CoreToCPS
@@ -119,6 +120,7 @@ test-suite vinci-lang-test
       OptimizationTests.PostOrderTest
       ParserTests
       TranspileToSSATest
+      TypeInferenceTest
       Paths_vinci_lang
   hs-source-dirs:
       test

@@ -14,6 +14,7 @@ import qualified Data.Set as Set
 import Core.AST
 import Core.FreeVariables (freeVariablesExpr)
 import Core.Utils (aggregateApplications)
+import Core.Types (Type(..))
 import LibraryList (coreLibraryList)
 
 type FunName = String
@@ -25,7 +26,7 @@ type LiftM = Reader LiftEnv
 lambdaLiftProgs :: [Prog Identity] -> [Prog Identity]
 lambdaLiftProgs progs = progs >>= lambdaLiftProg'
     where
-        libraryGlobals = Set.fromList $ (`Var'` TDummy) . fst <$> Map.toList coreLibraryList
+        libraryGlobals = Set.fromList $ uncurry Var' <$> Map.toList coreLibraryList
         progGlobals = Set.fromList $ (\(Prog f _ _) -> f) <$> progs
         globals = Set.union libraryGlobals progGlobals
         lambdaLiftProg' = Set.toList . blockFloatDef . parameterLiftProg globals

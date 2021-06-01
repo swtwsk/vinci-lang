@@ -12,7 +12,8 @@ import Core.Interpreter (eval, evalExprEnv)
 import qualified Core.Interpreter as CoreInt
 import Core.LambdaLifting (lambdaLiftProgs)
 import Core.Ops as Ops (BinOp(..))
-import Core.TypeChecking (tcProgs)
+import Core.TypeChecking (tiProgs)
+import Core.Types as Core
 import CPS.CoreToCPS (coreProgToCPS)
 import SSA.CPStoSSA (cpsFunToSSA)
 import qualified SSA.Interpreter as SSAInt
@@ -26,10 +27,10 @@ coreToSSATest = testGroup "Core to SSA"
     , QC.testProperty "Recursion g - f(x) == f_ssa(x)" $ \(QC.Positive x) -> valueEq (runProc gCore (Core.App (Core.Var (Core.VarId "f" Nothing)) (Core.Lit $ Core.LFloat x))) (SSAInt.run (cpsFunToSSA . coreProgToCPS <$> liftAndTypecheckQC [gCore]) "f" [x])
     , QC.testProperty "Recursion fib – fib(x) == fib_ssa(x)" $ \(QC.Positive x) -> valueEq (runProc fibCore (Core.App (Core.Var (Core.VarId "fib" Nothing)) (Core.Lit $ Core.LFloat (fromInteger x)))) (SSAInt.run (cpsFunToSSA . coreProgToCPS <$> liftAndTypecheckQC [fibCore]) "fib" [fromInteger x]) ]
     where
-        liftAndTypecheck core = case tcProgs core of
+        liftAndTypecheck core = case tiProgs core of
             Left err -> assertFailure err
             Right progs -> return (lambdaLiftProgs progs)
-        liftAndTypecheckQC core = case tcProgs core of
+        liftAndTypecheckQC core = case tiProgs core of
             Left _ -> undefined
             Right progs -> lambdaLiftProgs progs
         floatId var = Core.VarId var (Just Core.TFloat)

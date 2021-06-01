@@ -12,7 +12,7 @@ import qualified Core.CoreManager as CM (CoreManager(..), map)
 import Core.ConstDropping (dropConsts)
 import Core.FrontendToCore (frontendProgramToCore)
 import Core.LambdaLifting (lambdaLiftProgs)
-import Core.TypeChecking (tcCoreManager)
+import Core.TypeChecking (tiCoreManager)
 import CPS.CoreToCPS (coreToCPS)
 import qualified Frontend.AST as F
 import Frontend.TranspileAST (transpile)
@@ -61,7 +61,7 @@ compilationFunction outputType = case outputType of
     rest       -> typeCheckAndCompile rest . dropConsts . frontendProgramToCore
 
 typeCheckAndCompile :: OutputType -> CM.CoreManager Maybe -> String
-typeCheckAndCompile outputType progs = case tcCoreManager progs of
+typeCheckAndCompile outputType progs = case tiCoreManager progs of
     Left err -> err
     Right typeChecked -> case outputType of
         TCCore     -> show typeChecked

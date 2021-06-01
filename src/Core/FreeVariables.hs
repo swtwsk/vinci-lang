@@ -11,13 +11,13 @@ import Core.AST
 
 type VarSet a = Set.Set (VarId a)
 
-freeVariablesProg :: Prog a -> VarSet a
+freeVariablesProg :: (EquableFunctor a) => Prog a -> VarSet a
 freeVariablesProg (Prog f args e) = freeVariablesExpr e (Set.fromList (f:args))
 
-freeVariablesExpr :: Expr a -> VarSet a -> VarSet a
+freeVariablesExpr :: (EquableFunctor a) => Expr a -> VarSet a -> VarSet a
 freeVariablesExpr e = runReader (freeVariables' e)
 
-freeVariables' :: Expr a -> Reader (VarSet a) (VarSet a)
+freeVariables' :: (EquableFunctor a) => Expr a -> Reader (VarSet a) (VarSet a)
 freeVariables' (Var v) = ask <&> \s -> if Set.member v s 
     then Set.empty 
     else Set.singleton v

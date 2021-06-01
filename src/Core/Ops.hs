@@ -37,5 +37,5 @@ instance Show BinOp where
 
 instance Show UnOp where
     show op = case op of
-        OpNeg -> "-"
+        OpNeg -> "neg"
         OpNot -> "not"

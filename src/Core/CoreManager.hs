@@ -3,6 +3,7 @@ module Core.CoreManager where
 import qualified Data.Map as Map
 
 import Core.AST
+import Core.Types (Type)
 import StructDefMap (StructDefMap)
 
 type TypeSynonymsMap = Map.Map Type Type

@@ -15,10 +15,10 @@ data CoreGraph a = CoreGraph { _sorted         :: [Binding a]
 showGraph :: (ShowableFunctor f) => CoreGraph f -> String
 showGraph coreGraph = unlines (show <$> _sorted coreGraph)
 
-inverselySortTopologically :: [Binding a] -> [Binding a]
+inverselySortTopologically :: (EquableFunctor a) => [Binding a] -> [Binding a]
 inverselySortTopologically = _sorted . inverselySortTopologicallyToGraph
 
-inverselySortTopologicallyToGraph :: [Binding a] -> CoreGraph a
+inverselySortTopologicallyToGraph :: (EquableFunctor a) => [Binding a] -> CoreGraph a
 inverselySortTopologicallyToGraph progList = 
     CoreGraph { _sorted         = fstTriple . nodeFromVertex <$> sorted
               , _graph          = graph
@@ -30,7 +30,7 @@ inverselySortTopologicallyToGraph progList =
         sorted = reverse $ topSort graph
         fstTriple (x, _, _) = x
 
-progToNode :: Binding a -> BindingNode a
+progToNode :: (EquableFunctor a) => Binding a -> BindingNode a
 progToNode pb@(ProgBinding p@(Prog f _ _)) = 
     (pb, _varName f, _varName <$> Set.toList (freeVariablesProg p))
 progToNode c@(ConstBinding var _) = (c, _varName var, [])

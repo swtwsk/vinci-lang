@@ -6,6 +6,7 @@ import Control.Monad.Identity (Identity(Identity))
 import Data.List (intercalate)
 
 import Core.Ops (BinOp(..), UnOp(..))
+import Core.Types
 
 type VarName = String
 
@@ -41,16 +42,6 @@ data Lit = LFloat Double
          | LInt Int
          deriving (Eq, Ord)
 
-data Type = TInt
-          | TFloat
-          | TBool
-          | TFun Type Type
-          | TTuple Type Int
-          | TStruct String
-          | TDummy
-        --   | TVar String
-          deriving (Eq, Ord)
-
 varId :: VarName -> Type -> VarId Identity
 varId n t = VarId n (Identity t)
 
@@ -67,10 +58,22 @@ resType argCount t
     | otherwise     = Nothing
 
 -- VARID EQ
-instance Eq (VarId f) where
-    (VarId name1 _type1) == (VarId name2 _type2) = name1 == name2
+class EquableFunctor f where
+    eqF :: (Eq a) => f a -> f a -> Bool
 
-instance Ord (VarId f) where
+instance EquableFunctor Maybe where
+    eqF (Just x) (Just y) = x == y
+    eqF Nothing Nothing = True
+    eqF _ _ = False
+
+instance EquableFunctor Identity where
+    eqF (Identity x) (Identity y) = x == y
+
+instance (EquableFunctor f) => Eq (VarId f) where
+    (VarId name1 type1) == (VarId name2 type2) = 
+        name1 == name2 && eqF type1 type2
+
+instance (EquableFunctor f) => Ord (VarId f) where
     (VarId name1 _type1) <= (VarId name2 _type2) = name1 <= name2
 
 -- SHOWS
@@ -125,18 +128,3 @@ instance Show Lit where
         LFloat f -> show f
         LBool b  -> show b
         LInt i   -> show i
-
-instance Show Type where
-    show t = case t of
-        TInt -> "Int"
-        TBool -> "Bool"
-        TFloat -> "Float"
-        TStruct sName -> sName
-        -- TVar s -> s
-        TFun t1@TFun{} t2@TFun{} -> 
-            "(" ++ show t1 ++ ") -> (" ++ show t2 ++ ")"
-        TFun t1 t2@TFun{} -> show t1 ++ " -> (" ++ show t2 ++ ")"
-        TFun t1@TFun{} t2 -> "(" ++ show t1 ++ ") -> " ++ show t2
-        TFun t1 t2 -> show t1 ++ " -> " ++ show t2
-        TTuple t' i -> intercalate " × " (show <$> replicate i t')
-        TDummy -> "#"
