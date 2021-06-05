@@ -219,7 +219,7 @@ tiExpr (Let (VarId x _) e1 e2) = do
     (e2', s2, p2 :=> t2) <- local (\e -> e { _typeEnv = apply s1 env''}) (tiExpr e2)
     let s = s2 `composeSubst` s1
     ps <- entailOrThrow s (nub (p1 ++ p2))
-    return (Let (Var' x t1) e1' e2', s, ps :=> t2)
+    return (Let (Var' x (apply s t1)) e1' e2', s, ps :=> t2)
 tiExpr (LetFun p e) = do
     (p', tenv, sp, pp :=> _tp) <- tiProg' p
     (e', se, pe :=> te) <- local (\env -> env { _typeEnv = apply sp tenv }) (tiExpr e)
@@ -266,6 +266,12 @@ applySubstProg' (Prog (VarId fName (Identity fType)) args e) = do
     (e', _) <- applySubstExpr e
     return (Prog (Var' fName fType') args' e', fType)
 
+applyUnifiedFunType :: Subst -> TExpr -> ApplyM TExpr
+applyUnifiedFunType s (Var (Var' v t)) = return . Var $ Var' v (apply s t)
+applyUnifiedFunType s (App e1 e2) = 
+    (`App` e2) <$> applyUnifiedFunType s e1
+applyUnifiedFunType _ _ = undefined
+
 applySubstExpr :: TExpr -> ApplyM (TExpr, Type)
 applySubstExpr (Var (VarId v _)) = do
     t <- gets $ Map.lookup v
@@ -277,10 +283,21 @@ applySubstExpr (Lit l) = return . (Lit l, ) $ case l of
     LBool _ -> TBool
     LInt _ -> TInt
 applySubstExpr (App e1 e2) = do
-    (e1', t) <- applySubstExpr e1
-    (e2', _) <- applySubstExpr e2
-    let TFun _ t' = t
-    return (App e1' e2', t')
+    (e1', t1) <- applySubstExpr e1
+    (e2', t2) <- applySubstExpr e2
+    let s = unifyFunType t1 t2
+    let (TFun _ t') = apply s t1
+    e1'' <- applyUnifiedFunType s e1'
+    return (App e1'' e2', t')
+    where
+        unifyFunType :: Type -> Type -> Subst
+        unifyFunType (TFun (TTuple t1 _) _) (TTuple t _) = case t1 of
+            TVar tv -> Map.singleton tv t
+            _ -> nullSubst
+        unifyFunType (TFun t1 _) t = case t1 of
+            TVar tv -> Map.singleton tv t
+            _ -> nullSubst
+        unifyFunType _ _ = nullSubst
 applySubstExpr (If c e1 e2) = do
     (c', _)  <- applySubstExpr c
     (e1', t) <- applySubstExpr e1
@@ -416,6 +433,9 @@ mgu (TFun l r) (TFun l' r') = do
     s1 <- mgu l l'
     s2 <- mgu (apply s1 r) (apply s1 r')
     return (s1 `composeSubst` s2)
+mgu t1@(TTuple t i) t2@(TTuple t' i')
+    | i == i' = mgu t t'
+    | otherwise = throwError $ "tuple size do not match: " ++ show t1 ++ " vs. " ++ show t2
 mgu (TVar u) t = varBind u t
 mgu t (TVar u) = varBind u t
 mgu t1 t2
@@ -432,12 +452,19 @@ entailOrThrow :: Subst -> [Pred] -> TCM [Pred]
 entailOrThrow s preds = do
     let substPreds = apply s preds
     preds' <- forM substPreds $ \p@(IsIn c t) -> do
-        (_, types) <- asks (Map.lookup c . _classEnv) >>= \case
+        types <- asks (Map.lookup c . _classEnv) >>= \case
             Just classDef -> return classDef
             Nothing -> throwError $ "Unexpected class " ++ show c
-        case t of
+        checkTypeByPredicate c p types t
+    return $ concat preds'
+    where
+        checkTypeByPredicate :: Class -> Pred -> [Type] -> Type -> TCM [Pred]
+        checkTypeByPredicate c p types = \case
             TVar _ -> return [p]
-            TFun _ _ -> return [p] -- ?
+            TFun t1 t2 -> do
+                ps1 <- checkTypeByPredicate c p types t1
+                ps2 <- checkTypeByPredicate c p types t2
+                return $ ps1 ++ ps2
+            TTuple t _ -> checkTypeByPredicate c p types t
             tc -> if tc `elem` types then return [] else throwError $ 
                         show tc ++ " is not a member of class " ++ show c
-    return $ concat preds'

@@ -15,7 +15,7 @@ data Type = TInt
 
 newtype Tyvar = Tyvar String deriving (Eq, Ord, Show)
 
-data Class = ClassEq | ClassOrd | ClassNum deriving (Eq, Ord)
+data Class = ClassEq | ClassOrd | ClassNum | ClassFloating deriving (Eq, Ord)
 
 data Pred = IsIn Class Type 
           deriving Eq
@@ -26,7 +26,7 @@ data Qual t = [Pred] :=> t
 data Scheme = Scheme [Tyvar] (Qual Type) 
             deriving Show
 
-type ClassEnv = Map Class ([Class], [Type])
+type ClassEnv = Map Class [Type]
 
 toScheme :: Type -> Scheme
 toScheme t = Scheme [] ([] :=> t)
@@ -35,13 +35,16 @@ fromScheme :: Scheme -> Type
 fromScheme (Scheme _ (_ :=> t)) = t
 
 classEnv :: ClassEnv
-classEnv = fromList [ (ClassEq,  ([], [TBool, TInt, TFloat]))
-                    , (ClassOrd, ([ClassEq], [TInt, TFloat]))
-                    , (ClassNum, ([ClassEq, ClassOrd], [TInt, TFloat]))
+classEnv = fromList [ (ClassEq,  concat [ t:vectors t | t <- [TBool, TInt, TFloat] ])
+                    , (ClassOrd, concat [ t:vectors t | t <- [TInt, TFloat] ])
+                    , (ClassNum, concat [ t:vectors t | t <- [TInt, TFloat] ])
+                    , (ClassFloating, TFloat:vectors TFloat)
                     ]
 
--- SHOWS
+vectors :: Type -> [Type]
+vectors t = [ TTuple t i | i <- [2..4] ]
 
+-- SHOWS
 instance Show Type where
     show t = case t of
         TInt -> "Int"
@@ -61,6 +64,7 @@ instance Show Pred where
     show (IsIn c t) = show t ++ " in " ++ show c
 
 instance Show Class where
-    show ClassEq  = "Eq"
-    show ClassOrd = "Ord"
-    show ClassNum = "Num"
+    show ClassEq       = "Eq"
+    show ClassOrd      = "Ord"
+    show ClassNum      = "Num"
+    show ClassFloating = "Floating"

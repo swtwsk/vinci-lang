@@ -12,6 +12,7 @@ import qualified Core.CoreManager as CM (CoreManager(..), map)
 import Core.ConstDropping (dropConsts)
 import Core.FrontendToCore (frontendProgramToCore)
 import Core.LambdaLifting (lambdaLiftProgs)
+import Core.SpecializeTypes (specializeTypes)
 import Core.TypeChecking (tiCoreManager)
 import CPS.CoreToCPS (coreToCPS)
 import qualified Frontend.AST as F
@@ -65,19 +66,19 @@ typeCheckAndCompile outputType progs = case tiCoreManager progs of
     Left err -> err
     Right typeChecked -> case outputType of
         TCCore     -> show typeChecked
-        LiftedCore -> show $ CM.map lambdaLiftProgs typeChecked
-        CPS        -> show . coreToCPS $ CM.map lambdaLiftProgs typeChecked
+        LiftedCore -> show . specializeTypes $ CM.map lambdaLiftProgs typeChecked
+        CPS        -> show . coreToCPS . specializeTypes $ CM.map lambdaLiftProgs typeChecked
         SSA        -> unlines . (show <$>) . optimizeAndPrepare $
-              fst . cpsToSSA . coreToCPS $ CM.map lambdaLiftProgs typeChecked
+              fst . cpsToSSA . coreToCPS . specializeTypes $ CM.map lambdaLiftProgs typeChecked
         SPIRV      -> unlines . spirToLines . ssaToSpir . first optimizeAndPrepare $ 
-            cpsToSSA . coreToCPS $ CM.map lambdaLiftProgs typeChecked
+            cpsToSSA . coreToCPS . specializeTypes $ CM.map lambdaLiftProgs typeChecked
         Demo2      ->
             let spirManager = ssaToSpir . first optimizeAndPrepare $
-                    cpsToSSA . coreToCPS $ CM.map lambdaLiftProgs typeChecked in
+                    cpsToSSA . coreToCPS . specializeTypes $ CM.map lambdaLiftProgs typeChecked in
             compileToDemo2Spir spirManager
         FullSPIRV  ->
             let spirManager = ssaToSpir . first optimizeAndPrepare $ 
-                     cpsToSSA . coreToCPS $ CM.map lambdaLiftProgs typeChecked in
+                     cpsToSSA . coreToCPS . specializeTypes $ CM.map lambdaLiftProgs typeChecked in
             compileToDemoSpir spirManager
         _ -> "Error?"
 

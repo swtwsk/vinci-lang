@@ -53,6 +53,8 @@ data SpirOp = OpFunction SpirId SpirId SpirFunctionControl SpirId
             | OpLogicalOr SpirId SpirId SpirId SpirId
             | OpLogicalAnd SpirId SpirId SpirId SpirId
             | OpLogicalNot SpirId SpirId SpirId
+            | OpConvertFToS SpirId SpirId SpirId
+            | OpConvertSToF SpirId SpirId SpirId
 
             | OpTypeVoid SpirId
             | OpTypeBool SpirId
@@ -206,6 +208,10 @@ instance Show SpirOp where
         showOpWithResult res "OpLogicalAnd" [resT, a, b]
     show (OpLogicalNot res resT x) = 
         showOpWithResult res "OpLogicalNot" [resT, x]
+    show (OpConvertFToS res resT x) =
+        showOpWithResult res "OpConvertFToS" [resT, x]
+    show (OpConvertSToF res resT x) =
+        showOpWithResult res "OpConvertSToF" [resT, x]
     show (OpTypeVoid res) = showOpWithResult res "OpTypeVoid" []
     show (OpTypeBool res) = showOpWithResult res "OpTypeBool" []
     show (OpTypeInt res width signed) = 

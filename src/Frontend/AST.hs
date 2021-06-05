@@ -90,7 +90,8 @@ instance Show LetDef where
 instance Show LetBind where
     show (ConstBind lambdavi expr) = show lambdavi ++ " = " ++ show expr
     show (ProcBind name args resType expr) = 
-        name ++ unwords (show <$> args) ++ maybe "" show resType ++ show expr
+        name ++ " " ++ unwords (show <$> args) ++ 
+        maybe "" ((" -> " ++) . show) resType ++ " = " ++ show expr
 
 instance Show Expr where
     show (EId ident) = ident

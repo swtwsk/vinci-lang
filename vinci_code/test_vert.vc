@@ -31,13 +31,13 @@ let vert (u : Uniforms) (ins : VertIns) =
 ;;
 
 let bezierFromTime x time =
-    let cp = (abs (cos time) * 0.5 + 0.7, abs (sin time) * 0.5 + 0.5) in
+    let cp = abs (cos time, sin time) * (0.5, 0.5) + (0.7, 0.5) in
     quadraticBezier x cp
 ;;
 
 let quadraticBezier x (a : Vec2) =
     let epsilon = 0.00001 in
-    let (ax, ay) = (clamp a.x 0.0 1.0, clamp a.y 0.0 1.0) in
+    let (ax, ay) = clamp (a.x, a.y) (0.0, 0.0) (intToFloat 1, 1.0) in
     let om2a = 1.0 - 2.0 * ax in
     let t = (sqrt (ax * ax + om2a * x) - ax) / om2a in
     let y = (1.0 - 2.0 * ay) * t * t + (2.0 * ay) * t in

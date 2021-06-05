@@ -13,7 +13,7 @@ import Data.Maybe (fromMaybe, isNothing)
 
 import qualified Attribute
 import Core.Ops
-import LibraryList (spirLibraryList, spirStructureList)
+import LibraryList (floatToInt, intToFloat, spirLibraryList, spirStructureList)
 import ManglingPrefixes (ssaToSpirLabelPrefix)
 import StructDefMap (FieldDef, StructDefMap)
 import SSA.AST
@@ -432,8 +432,9 @@ exprToSpir (SVar (Var vName t)) = do
     output $ OpLoad tmp varType var'
     return (tmp, t)
 exprToSpir (SApp (Var fName fType) args) = do
-    let (TFun rt _) = fType
+    let (TFun rt at) = fType
     retType <- getTypeId rt
+    argTypes <- mapM getTypeId at
     tmp <- SpirId <$> nextVar
     phiVars <- gets _phiVars
     args' <- mapM getRenamedVar (_varName <$> args)
@@ -451,10 +452,16 @@ exprToSpir (SApp (Var fName fType) args) = do
     case Map.lookup fName spirLibraryList of
         Just fName' -> do
             argTmps <- replicateM (length args'') nextVar
-            zipWithM_ (\arg tmp' -> output (OpLoad tmp' retType arg))
-                args'' (SpirId <$> argTmps)
+            let argTmps' = SpirId <$> argTmps
+            zipWithM_ (\arg (tmp', argType) -> output (OpLoad tmp' argType arg)) 
+                args'' (zip argTmps' argTypes)
             extInstId <- getExtInstId "GLSL.std.450"
-            output $ OpExtInst tmp retType extInstId fName' (SpirId <$> argTmps)
+
+            output $ if fName == intToFloat 
+                then OpConvertSToF tmp retType (head argTmps')
+                else if fName == floatToInt 
+                    then OpConvertFToS tmp retType (head argTmps')
+                    else OpExtInst tmp retType extInstId (fName' rt) argTmps'
         Nothing     ->
             output $ OpFunctionCall tmp retType (SpirId fName) args''
     return (tmp, rt)
@@ -480,11 +487,16 @@ exprToSpir (STupleProj i (Var tuple t)) = do
     return (tmp, t')
 exprToSpir (SBinOp op e1 e2) = do
     (t1, et) <- exprToSpir e1
-    (t2, _) <- exprToSpir e2
+    (t2, _)  <- exprToSpir e2
     v  <- SpirId <$> nextVar
     eType <- getTypeId et
-    boolType <- getTypeId TBool
-    output $ case (op, et) of
+    boolType <- getTypeId $ case et of
+        TVector _ i -> TVector TBool i
+        _ -> TBool
+    let innerExprType = case et of
+            TVector iet _ -> iet
+            _ -> et
+    output $ case (op, innerExprType) of
         (OpAdd, TInt)   -> OpIAdd v eType t1 t2
         (OpAdd, TFloat) -> OpFAdd v eType t1 t2
         (OpMul, TInt)   -> OpIMul v eType t1 t2

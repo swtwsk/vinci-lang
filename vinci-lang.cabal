@@ -35,6 +35,7 @@ library
       Core.Interpreter
       Core.LambdaLifting
       Core.Ops
+      Core.SpecializeTypes
       Core.Toposort
       Core.TypeChecking
       Core.Types
