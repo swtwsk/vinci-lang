@@ -1,5 +1,5 @@
-module LibraryList ( intToFloat
-                   , floatToInt
+module LibraryList ( LibraryFunction (..)
+                   , readLibraryFunction
                    , coreLibraryList 
                    , librarySchemeList
                    , spirLibraryList
@@ -14,61 +14,75 @@ import qualified SPIRV.Types as SType (SpirType(..))
 
 type SpirTypeToFunName = SType.SpirType -> String
 
-intToFloat :: String
-intToFloat = "intToFloat"
+data LibraryFunction = IntToFloat
+                     | FloatToInt
+                     | Texture1D
+                     | Texture2D
+                     | Texture3D
+                     | LibFun String
+                     deriving (Eq, Ord, Read)
 
-floatToInt :: String
-floatToInt = "floatToInt"
+readLibraryFunction :: String -> LibraryFunction
+readLibraryFunction libFun = case libFun of
+    "intToFloat" -> IntToFloat
+    "floatToInt" -> FloatToInt
+    "texture1D"  -> Texture1D
+    "texture2D"  -> Texture2D
+    "texture3D"  -> Texture3D
+    s -> LibFun s
 
 -- based on the list of GLSL.std.450 extensions from
 -- https://www.khronos.org/registry/spir-v/specs/1.0/GLSL.std.450.html
-libraryList :: Map.Map String (Scheme, SpirTypeToFunName)
+libraryList :: Map.Map LibraryFunction (Scheme, SpirTypeToFunName)
 libraryList = Map.fromList 
-    [ ("round",       (floatingUnOpScheme, const "Round"))
-    , ("roundEven",   (floatingUnOpScheme, const "RoundEven"))
-    , ("trunc",       (floatingUnOpScheme, const "Trunc"))
-    , ("abs",         (unNumOpScheme, floatOrIntFunName "FAbs" "SAbs"))
-    , ("sign",        (unNumOpScheme, floatOrIntFunName "FSign" "SSign"))
-    , ("floor",       (floatingUnOpScheme, const "Floor"))
-    , ("ceil",        (floatingUnOpScheme, const "Ceil"))
-    , ("fract",       (floatingUnOpScheme, const "Fract"))
-    , ("radians",     (floatingUnOpScheme, const "Radians"))
-    , ("degrees",     (floatingUnOpScheme, const "Degrees"))
-    , ("sin",         (floatingUnOpScheme, const "Sin"))
-    , ("cos",         (floatingUnOpScheme, const "Cos"))
-    , ("tan",         (floatingUnOpScheme, const "Tan"))
-    , ("asin",        (floatingUnOpScheme, const "Asin"))
-    , ("acos",        (floatingUnOpScheme, const "Acos"))
-    , ("atan",        (floatingUnOpScheme, const "Atan"))
-    , ("sinh",        (floatingUnOpScheme, const "Sinh"))
-    , ("cosh",        (floatingUnOpScheme, const "Cosh"))
-    , ("tanh",        (floatingUnOpScheme, const "Tanh"))
-    , ("asinh",       (floatingUnOpScheme, const "Asinh"))
-    , ("acosh",       (floatingUnOpScheme, const "Acosh"))
-    , ("atanh",       (floatingUnOpScheme, const "Atanh"))
-    , ("atan2",       (floatingBinOpScheme, const "Atan2"))
-    , ("pow",         (floatingBinOpScheme, const "Pow"))
-    , ("exp",         (floatingUnOpScheme, const "Exp"))
-    , ("log",         (floatingUnOpScheme, const "Log"))
-    , ("exp2",        (floatingUnOpScheme, const "Exp2"))
-    , ("log2",        (floatingUnOpScheme, const "Log2"))
-    , ("sqrt",        (floatingUnOpScheme, const "Sqrt"))
-    , ("inversesqrt", (floatingUnOpScheme, const "InverseSqrt"))
-    , ("min",         (binNumOpScheme, floatOrIntFunName "FMin" "SMin"))
-    , ("max",         (binNumOpScheme, floatOrIntFunName "FMax" "SMax"))
-    , ("clamp",       (tripleNumOpScheme, floatOrIntFunName "FClamp" "SClamp"))
-    , ("mix",         (floatingTripleOpScheme, const "FMin"))
-    , ("step",        (floatingBinOpScheme, const "Step"))
-    , ("smoothstep",  (floatingTripleOpScheme, const "SmoothStep"))
-    , ("length",      (floatingUnOpToScalarScheme, const "Length"))
-    , ("distance",    (floatingBinOpToScalarScheme, const "Distance"))
-    , ("cross",       (Scheme [] ([] :=> TFun (TTuple TFloat 3) (TFun (TTuple TFloat 3) (TTuple TFloat 3))), const "Cross"))
-    , ("normalize",   (floatingUnOpScheme, const "Normalize"))
-    , ("faceforward", (floatingTripleOpScheme, const "FaceForward"))
-    , ("reflect",     (floatingBinOpScheme, const "Reflect"))
-    , ("refract",     (Scheme [Tyvar "a"] ([IsIn ClassFloating (TVar $ Tyvar "a")] :=> TFun (TVar $ Tyvar "a") (TFun (TVar $ Tyvar "a") (TFun TFloat (TVar $ Tyvar "a")))), const "Refract"))
-    , (floatToInt,    (Scheme [] ([] :=> TFun TFloat TInt), undefined))
-    , (intToFloat,    (Scheme [] ([] :=> TFun TInt TFloat), undefined))
+    [ (LibFun "round",       (floatingUnOpScheme, const "Round"))
+    , (LibFun "roundEven",   (floatingUnOpScheme, const "RoundEven"))
+    , (LibFun "trunc",       (floatingUnOpScheme, const "Trunc"))
+    , (LibFun "abs",         (unNumOpScheme, floatOrIntFunName "FAbs" "SAbs"))
+    , (LibFun "sign",        (unNumOpScheme, floatOrIntFunName "FSign" "SSign"))
+    , (LibFun "floor",       (floatingUnOpScheme, const "Floor"))
+    , (LibFun "ceil",        (floatingUnOpScheme, const "Ceil"))
+    , (LibFun "fract",       (floatingUnOpScheme, const "Fract"))
+    , (LibFun "radians",     (floatingUnOpScheme, const "Radians"))
+    , (LibFun "degrees",     (floatingUnOpScheme, const "Degrees"))
+    , (LibFun "sin",         (floatingUnOpScheme, const "Sin"))
+    , (LibFun "cos",         (floatingUnOpScheme, const "Cos"))
+    , (LibFun "tan",         (floatingUnOpScheme, const "Tan"))
+    , (LibFun "asin",        (floatingUnOpScheme, const "Asin"))
+    , (LibFun "acos",        (floatingUnOpScheme, const "Acos"))
+    , (LibFun "atan",        (floatingUnOpScheme, const "Atan"))
+    , (LibFun "sinh",        (floatingUnOpScheme, const "Sinh"))
+    , (LibFun "cosh",        (floatingUnOpScheme, const "Cosh"))
+    , (LibFun "tanh",        (floatingUnOpScheme, const "Tanh"))
+    , (LibFun "asinh",       (floatingUnOpScheme, const "Asinh"))
+    , (LibFun "acosh",       (floatingUnOpScheme, const "Acosh"))
+    , (LibFun "atanh",       (floatingUnOpScheme, const "Atanh"))
+    , (LibFun "atan2",       (floatingBinOpScheme, const "Atan2"))
+    , (LibFun "pow",         (floatingBinOpScheme, const "Pow"))
+    , (LibFun "exp",         (floatingUnOpScheme, const "Exp"))
+    , (LibFun "log",         (floatingUnOpScheme, const "Log"))
+    , (LibFun "exp2",        (floatingUnOpScheme, const "Exp2"))
+    , (LibFun "log2",        (floatingUnOpScheme, const "Log2"))
+    , (LibFun "sqrt",        (floatingUnOpScheme, const "Sqrt"))
+    , (LibFun "inversesqrt", (floatingUnOpScheme, const "InverseSqrt"))
+    , (LibFun "min",         (binNumOpScheme, floatOrIntFunName "FMin" "SMin"))
+    , (LibFun "max",         (binNumOpScheme, floatOrIntFunName "FMax" "SMax"))
+    , (LibFun "clamp",       (tripleNumOpScheme, floatOrIntFunName "FClamp" "SClamp"))
+    , (LibFun "mix",         (floatingTripleOpScheme, const "FMin"))
+    , (LibFun "step",        (floatingBinOpScheme, const "Step"))
+    , (LibFun "smoothstep",  (floatingTripleOpScheme, const "SmoothStep"))
+    , (LibFun "length",      (floatingUnOpToScalarScheme, const "Length"))
+    , (LibFun "distance",    (floatingBinOpToScalarScheme, const "Distance"))
+    , (LibFun "cross",       (Scheme [] ([] :=> TFun (TTuple TFloat 3) (TFun (TTuple TFloat 3) (TTuple TFloat 3))), const "Cross"))
+    , (LibFun "normalize",   (floatingUnOpScheme, const "Normalize"))
+    , (LibFun "faceforward", (floatingTripleOpScheme, const "FaceForward"))
+    , (LibFun "reflect",     (floatingBinOpScheme, const "Reflect"))
+    , (LibFun "refract",     (Scheme [Tyvar "a"] ([IsIn ClassFloating (TVar $ Tyvar "a")] :=> TFun (TVar $ Tyvar "a") (TFun (TVar $ Tyvar "a") (TFun TFloat (TVar $ Tyvar "a")))), const "Refract"))
+    , (Texture1D,     (Scheme [] ([] :=> TFun (TSampler 1) (TFun TFloat (TTuple TFloat 4))), undefined))
+    , (Texture2D,     (Scheme [] ([] :=> TFun (TSampler 2) (TFun (TTuple TFloat 2) (TTuple TFloat 4))), undefined))
+    , (Texture3D,     (Scheme [] ([] :=> TFun (TSampler 3) (TFun (TTuple TFloat 3) (TTuple TFloat 4))), undefined))
+    , (FloatToInt,    (Scheme [] ([] :=> TFun TFloat TInt), undefined))
+    , (IntToFloat,    (Scheme [] ([] :=> TFun TInt TFloat), undefined))
     ]
     where
         floatOrIntFunName floatName intName t = case t of
@@ -90,7 +104,7 @@ libraryList = Map.fromList
             TFun (TVar $ Tyvar "a") (TFun (TVar $ Tyvar "a") TFloat))
 
 librarySchemeList :: Map.Map String Scheme
-librarySchemeList = Map.map fst libraryList `Map.union` Map.fromList
+librarySchemeList = bimapMap show fst libraryList `Map.union` Map.fromList
     [ (show OpAdd,   binNumOpScheme)
     , (show OpMul,   binNumOpScheme)
     , (show OpSub,   binNumOpScheme)
@@ -123,9 +137,9 @@ librarySchemeList = Map.map fst libraryList `Map.union` Map.fromList
         boolBinOpScheme  = constTypedBinOpScheme TBool
 
 coreLibraryList :: Map.Map String Type
-coreLibraryList = Map.map (fromScheme . fst) libraryList
+coreLibraryList = bimapMap show (fromScheme . fst) libraryList
 
-spirLibraryList :: Map.Map String SpirTypeToFunName
+spirLibraryList :: Map.Map LibraryFunction SpirTypeToFunName
 spirLibraryList = Map.map snd libraryList
 
 spirStructureList :: StructDefMap SType.SpirType
@@ -139,6 +153,13 @@ spirStructureList = Map.fromList
     ]
 
 -- Helpers
+bimapMap :: (Ord k1, Ord k2) => 
+            (k1 -> k2) 
+         -> (a -> b) 
+         -> Map.Map k1 a 
+         -> Map.Map k2 b
+bimapMap keyFn valueFn = Map.mapKeys keyFn . Map.map valueFn
+
 tripleOpScheme :: Class -> Scheme
 tripleOpScheme c = Scheme [Tyvar "a"] $ 
     [IsIn c (TVar $ Tyvar "a")] :=> 
@@ -152,3 +173,11 @@ binOpScheme c = Scheme [Tyvar "a"] $
 unOpScheme :: Class -> Scheme
 unOpScheme c = Scheme [Tyvar "a"] ([IsIn c (TVar $ Tyvar "a")] :=> 
     TFun (TVar $ Tyvar "a") (TVar $ Tyvar "a"))
+
+instance Show LibraryFunction where
+    show Texture1D  = "texture1D"
+    show Texture2D  = "texture2D"
+    show Texture3D  = "texture3D"
+    show IntToFloat = "intToFloat"
+    show FloatToInt = "floatToInt"
+    show (LibFun f) = f

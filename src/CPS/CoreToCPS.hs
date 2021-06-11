@@ -249,6 +249,7 @@ coreTypeTranslation (Core.TFun t1 t2) =
     CPS.CTFun (coreTypeTranslation t1) (coreTypeTranslation t2)
 coreTypeTranslation (Core.TTuple t i) = CPS.CTTuple (coreTypeTranslation t) i
 coreTypeTranslation (Core.TStruct sName) = CPS.CTStruct sName
+coreTypeTranslation (Core.TSampler i) = CPS.CTSampler i
 coreTypeTranslation Core.TDummy = undefined
 coreTypeTranslation (Core.TVar _) = undefined
 

@@ -9,6 +9,7 @@ data Type = TInt
           | TFun Type Type
           | TTuple Type Int
           | TStruct String
+          | TSampler Int
           | TVar Tyvar
           | TDummy
           deriving (Eq, Ord)
@@ -58,6 +59,7 @@ instance Show Type where
         TFun t1@TFun{} t2 -> "(" ++ show t1 ++ ") -> " ++ show t2
         TFun t1 t2 -> show t1 ++ " -> " ++ show t2
         TTuple t' i -> "(" ++ intercalate ", " (show <$> replicate i t') ++ ")"
+        TSampler i -> "Sampler" ++ show i ++ "D"
         TDummy -> "#"
 
 instance Show Pred where

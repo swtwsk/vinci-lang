@@ -13,7 +13,7 @@ import Data.Maybe (fromMaybe, isNothing)
 
 import qualified Attribute
 import Core.Ops
-import LibraryList (floatToInt, intToFloat, spirLibraryList, spirStructureList)
+import LibraryList (LibraryFunction(..), readLibraryFunction, spirLibraryList, spirStructureList)
 import ManglingPrefixes (ssaToSpirLabelPrefix)
 import StructDefMap (FieldDef, StructDefMap)
 import SSA.AST
@@ -270,8 +270,8 @@ entryPointArgumentToUniform ( fieldName
     insertRenamed tmpVar tmpVar
     return $ Var tmpVar fType
 -- TODO: Following should be used just for sampler/image
--- entryPointArgumentToUniform (fieldName, Just (Attribute.Binding b), fType) =
---     entryPointArgumentToGlobal' StorUniformConstant (getUniformAnnotations b) fieldName fType
+entryPointArgumentToUniform (fieldName, Just (Attribute.Binding b), fType@(TSampledImage _)) =
+    entryPointArgumentToGlobal' StorUniformConstant (getUniformAnnotations b) fieldName fType
 entryPointArgumentToUniform _ = undefined
 
 -- | List annotations (decorations) for uniform bindings
@@ -449,22 +449,41 @@ exprToSpir (SApp (Var fName fType) args) = do
             output $ OpStore varTmp argTmp
             return varTmp
         Nothing -> return (SpirId arg)
-    case Map.lookup fName spirLibraryList of
-        Just fName' -> do
+    let libFun = readLibraryFunction fName
+    case Map.lookup libFun spirLibraryList of
+        Just fun -> do
             argTmps <- replicateM (length args'') nextVar
             let argTmps' = SpirId <$> argTmps
             zipWithM_ (\arg (tmp', argType) -> output (OpLoad tmp' argType arg)) 
                 args'' (zip argTmps' argTypes)
             extInstId <- getExtInstId "GLSL.std.450"
 
-            output $ if fName == intToFloat 
-                then OpConvertSToF tmp retType (head argTmps')
-                else if fName == floatToInt 
-                    then OpConvertFToS tmp retType (head argTmps')
-                    else OpExtInst tmp retType extInstId (fName' rt) argTmps'
+            output $ libraryOp libFun tmp retType argTmps' extInstId fun rt
         Nothing     ->
             output $ OpFunctionCall tmp retType (SpirId fName) args''
     return (tmp, rt)
+    where
+        libraryOp :: LibraryFunction 
+                  -> SpirId 
+                  -> SpirId 
+                  -> [SpirId] 
+                  -> SpirId 
+                  -> (SpirType -> String) 
+                  -> SpirType 
+                  -> SpirOp
+        libraryOp IntToFloat tmp retTypeId [arg] _ _ _ = 
+            OpConvertSToF tmp retTypeId arg
+        libraryOp FloatToInt tmp retTypeId [arg] _ _ _ = 
+            OpConvertFToS tmp retTypeId arg
+        libraryOp (LibFun _) tmp retTypeId argTmps extInstId retTypeToNameFunction retType = 
+            OpExtInst tmp retTypeId extInstId (retTypeToNameFunction retType) argTmps
+        libraryOp Texture1D tmp retTypeId [arg1, arg2] _ _ _ = 
+            OpImageSampleImplicitLod tmp retTypeId arg1 arg2
+        libraryOp Texture2D tmp retTypeId [arg1, arg2] _ _ _ =
+            OpImageSampleImplicitLod tmp retTypeId arg1 arg2
+        libraryOp Texture3D tmp retTypeId [arg1, arg2] _ _ _ =
+            OpImageSampleImplicitLod tmp retTypeId arg1 arg2
+        libraryOp _ _ _ _ _ _ _ = undefined
 exprToSpir (SStructCtr sType vars) = do
     loaded <- forM vars $ \var -> exprToSpir (SVar var)
     tmp <- SpirId <$> nextVar
@@ -628,6 +647,8 @@ getTypeId t@(TStruct sName _isUniform) = do
     fieldDefs <- gets $ (Map.! sName) . _structDefs
     mapM_ getTypeId (trdTriple <$> fieldDefs)
     getTypeId' t
+getTypeId t@(TSampledImage imageType) = getTypeId imageType >> getTypeId' t
+getTypeId t@(TImage innerType _ _ _ _ _ _) = getTypeId innerType >> getTypeId' t
 getTypeId t = getTypeId' t
 
 getTypeId' :: SpirType -> SpirCompiler SpirId
@@ -664,6 +685,8 @@ typesToOps = do
                 [OpTypeFunction var (typeIds Map.! ret) ((typeIds Map.!) <$> args)]
             TStruct sName _isUniform -> return
                 [OpTypeStruct var $ (typeIds Map.!) . trdTriple <$> (structDefs Map.! sName)]
+            TSampledImage t' -> return [OpTypeSampledImage var (typeIds Map.! t')]
+            TImage t' dim depth arrayed ms sampled format -> return [OpTypeImage var (typeIds Map.! t') dim depth arrayed ms sampled format]
     return (concat types)
 
 -- courtesy of https://stackoverflow.com/a/12131896

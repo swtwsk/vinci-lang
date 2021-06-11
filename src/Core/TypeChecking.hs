@@ -74,24 +74,24 @@ tiProgsRun _ [] = return []
 
 -- TODO: HANDLE RECURSION!
 tiProg' :: Prog Maybe -> TCM (Prog Identity, TypeEnv, Subst, Qual Type)
-tiProg' (Prog (VarId fName _fType) args e) = do
-    -- returnType <- case resType (length args) fType of
-    --     Just t -> return t
-    --     Nothing -> throwError $ "Argument count and function type for " ++ show p ++ " is not aligned"
+tiProg' (Prog (VarId fName maybeFType) args e) = do
+    returnType <- case maybeFType of
+        Just t -> return t
+        Nothing -> newTyVar "f"
     args' <- forM args $ \(VarId an at) -> case at of
         Just t -> return (an, toScheme t)
         Nothing -> (\t -> (an, toScheme t)) <$> newTyVar "a"
-    fTyVar <- newTyVar "f"
     tenv <- asks _typeEnv
     let TypeEnv tenv' = foldl remove tenv (fName:(fst <$> args'))
         tenv'' = tenv' `Map.union` 
                  Map.fromList args' `Map.union` 
-                 Map.singleton fName (toScheme fTyVar)
+                 Map.singleton fName (toScheme returnType)
     (e', s1, p1 :=> t1) <- local (\env -> env { _typeEnv = TypeEnv tenv'' }) (tiExpr e)
 
     let fType = foldr (\(_, sc) -> TFun (apply s1 $ fromScheme sc)) t1 args'
-    s2 <- mgu fType (apply s1 fTyVar)
-    let pre = p1 :=> apply s2 fType
+    s2 <- mgu fType (apply s1 returnType)
+    let s' = s2 `composeSubst` s1
+    let pre = p1 :=> apply s' fType
     let TypeEnv env2 = remove tenv fName
         t' = generalize (apply s1 tenv) pre
         tenv''' = TypeEnv $ Map.insert fName t' env2
@@ -101,7 +101,7 @@ tiProg' (Prog (VarId fName _fType) args e) = do
     let args'' = uncurry Var' <$> zip (fst <$> args') finalArgTypes
 
     ps <- entailOrThrow s1 (nub (p1 ++ p2))
-    return (Prog (Var' fName finalT) args'' e', tenv''', s1, ps :=> finalT)
+    return (Prog (Var' fName finalT) args'' e', tenv''', s', ps :=> finalT)
     where
         extractArgTypes :: Int -> Type -> TCM [Type]
         extractArgTypes 0 _ = return []
@@ -383,11 +383,13 @@ instance Types Type where
     apply s (TVar u)     = case Map.lookup u s of
         Just t -> t
         Nothing -> TVar u
+    apply s (TTuple t i) = TTuple (apply s t) i
     apply s (TFun t1 t2) = TFun (apply s t1) (apply s t2)
     apply _ t            = t
 
     ftv (TVar n)     = Set.singleton n
     ftv (TFun t1 t2) = ftv t1 `Set.union` ftv t2
+    ftv (TTuple t _) = ftv t
     ftv _            = Set.empty
 
 instance Types a => Types [a] where

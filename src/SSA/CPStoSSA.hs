@@ -12,6 +12,7 @@ import qualified CPS.AST as CPS
 import ManglingPrefixes (cpsToSsaVarPrefix)
 import SSA.AST
 import StructDefMap (StructDefMap)
+import SPIRV.SpirImageConstants
 import SPIRV.Types
 import Utils.DList (output)
 import Utils.Tuple
@@ -192,6 +193,14 @@ cTypeToSSA ct@(CPS.CTFun _ _) = TFun ret args
         aggregateTypes t = ([], t)
 cTypeToSSA (CPS.CTTuple t i) = TVector (cTypeToSSA t) i
 cTypeToSSA (CPS.CTStruct sName) = TStruct sName NotUniform
+cTypeToSSA (CPS.CTSampler i) = TSampledImage $ 
+    TImage TFloat dim NotDepth NonArrayed SingleSampled WithSampler Unknown
+    where
+        dim = case i of
+            1 -> OneD
+            2 -> TwoD
+            3 -> ThreeD
+            _ -> undefined
 cTypeToSSA CPS.CTBottom = undefined
 
 varToSSA :: CPS.Var -> Var

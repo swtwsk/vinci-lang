@@ -16,7 +16,7 @@ import Core.AST
 import Core.CoreManager (CoreBindingsManager (..), TypeSynonymsMap)
 import Core.Ops
 import Core.Toposort (inverselySortTopologically)
-import Core.Types (Type(..))
+import Core.Types (Type(..), Tyvar(..))
 import ManglingPrefixes (frontendToCoreVarPrefix)
 import StructDefMap (StructDefMap, StructName, FieldDef)
 import Utils.Tuple (fstTriple)
@@ -69,12 +69,18 @@ bindToProg (F.ProcBind name vis rType e) = do
     vis' <- mapM extractName vis
     e'' <- exprToCore e'
     (args, e''') <- extractProgArgs (vis' ++ vis'') e''
-    let lTypes = map getProgArgType vis'
-    let fType = case (sequence lTypes, rType) of
-            (Just tps, Just r) -> 
+    let lMaybeTypes = getProgArgType <$> vis'
+        lTypes = argMaybeTypeToType <$> zip lMaybeTypes [(0 :: Int)..]
+    let fType = case (lTypes, rType) of
+            (tps, Just r) -> 
                 Just $ foldr TFun (typeToCore r) tps
             _ -> Nothing
     return . ProgBinding $ Prog (VarId name fType) args e'''
+
+    where
+        argMaybeTypeToType (mt, i) = case mt of
+            Just t  -> t
+            Nothing -> TVar $ Tyvar (show i)
 bindToProg cb@F.ConstBind {} = do
     let dummy = Var (VarId "" Nothing)
     bind' <- letBindToCore cb dummy
@@ -216,6 +222,8 @@ typeToCore F.TFloat = TFloat
 typeToCore F.TBool = TBool
 typeToCore (F.TStruct structName) = case structName of
     'V':'e':'c':i -> TTuple TFloat (read i)
+    'I':'V':'e':'c':i -> TTuple TInt (read i)
+    ['S', 'a', 'm', 'p', 'l', 'e', 'r', i, 'D'] -> TSampler (read [i])
     _ -> TStruct structName
 typeToCore (F.TPoly _) = undefined
 typeToCore (F.TFun t1 t2) = TFun (typeToCore t1) (typeToCore t2)

@@ -42,6 +42,7 @@ data CType = CTFloat
            | CTInt
            | CTFun CType CType
            | CTTuple CType Int
+           | CTSampler Int
            | CTStruct String
            | CTBottom            -- meaning applied continuation
            deriving Eq
@@ -220,4 +221,5 @@ instance Show CType where
         CTFun t1 t2 -> show t1 ++ " -> " ++ show t2
         CTTuple t' i -> intercalate " × " (show <$> replicate i t')
         CTStruct sName -> sName
+        CTSampler i -> "Sampler" ++ show i ++ "D"
         CTBottom -> "⊥"

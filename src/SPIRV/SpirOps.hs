@@ -1,5 +1,7 @@
 module SPIRV.SpirOps where
 
+import SPIRV.SpirImageConstants
+
 newtype SpirId = SpirId String  -- for now
                deriving (Eq, Ord)
 
@@ -55,6 +57,7 @@ data SpirOp = OpFunction SpirId SpirId SpirFunctionControl SpirId
             | OpLogicalNot SpirId SpirId SpirId
             | OpConvertFToS SpirId SpirId SpirId
             | OpConvertSToF SpirId SpirId SpirId
+            | OpImageSampleImplicitLod SpirId SpirId SpirId SpirId
 
             | OpTypeVoid SpirId
             | OpTypeBool SpirId
@@ -63,6 +66,8 @@ data SpirOp = OpFunction SpirId SpirId SpirFunctionControl SpirId
             | OpTypeVector SpirId SpirId Int
             | OpTypeArray SpirId SpirId SpirId
             | OpTypeStruct SpirId [SpirId]
+            | OpTypeSampledImage SpirId SpirId
+            | OpTypeImage SpirId SpirId SpirImageDim SpirImageDepth SpirImageArrayed SpirImageMultisampled SpirImageSampled SpirImageFormat
             | OpTypePointer SpirId SpirStorageClass SpirId
             | OpTypeFunction SpirId SpirId [SpirId]
 
@@ -212,6 +217,8 @@ instance Show SpirOp where
         showOpWithResult res "OpConvertFToS" [resT, x]
     show (OpConvertSToF res resT x) =
         showOpWithResult res "OpConvertSToF" [resT, x]
+    show (OpImageSampleImplicitLod res resT sampledImage coord) =
+        showOpWithResult res "OpImageSampleImplicitLod" [resT, sampledImage, coord]
     show (OpTypeVoid res) = showOpWithResult res "OpTypeVoid" []
     show (OpTypeBool res) = showOpWithResult res "OpTypeBool" []
     show (OpTypeInt res width signed) = 
@@ -224,6 +231,12 @@ instance Show SpirOp where
         show res ++ " = OpTypeArray " ++ show t ++ " " ++ show size
     show (OpTypeStruct res fieldTypes) =
         showOpWithResult res "OpTypeStruct" fieldTypes
+    show (OpTypeSampledImage res imageType) =
+        showOpWithResult res "OpTypeSampledImage" [imageType]
+    show (OpTypeImage res innerType dim depth arrayed ms sampled format) =
+        show res ++ " = OpTypeImage " ++ show innerType ++ " " ++ show dim ++ 
+        " " ++ show depth ++ " " ++ show arrayed ++ " " ++ show ms ++ " " ++
+        show sampled ++ " " ++ show format
     show (OpTypePointer res storage t) = 
         show res ++ " = OpTypePointer " ++ show storage ++ " " ++ show t
     show (OpTypeFunction res resT argTypes) = 
