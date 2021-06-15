@@ -491,13 +491,18 @@ entailOrThrow s preds = do
     return $ concat preds'
     where
         checkTypeByPredicate :: Class -> Pred -> [Type] -> Type -> TCM [Pred]
-        checkTypeByPredicate c p types = \case
-            TVar _ -> return [p]
-            TFun t1 t2 -> do
-                ps1 <- checkTypeByPredicate c p types t1
-                ps2 <- checkTypeByPredicate c p types t2
-                return $ ps1 ++ ps2
-            TTuple t _ -> checkTypeByPredicate c p types t
-            TMatrix t _ -> checkTypeByPredicate c p types t
-            tc -> if tc `elem` types then return [] else throwError $ 
-                        show tc ++ " is not a member of class " ++ show c
+        checkTypeByPredicate c p types = 
+            let funCheck t1 t2 = do
+                    ps1 <- checkTypeByPredicate c p types t1
+                    ps2 <- checkTypeByPredicate c p types t2
+                    return $ ps1 ++ ps2
+            in
+            \case
+                TVar _ -> return [p]
+                TTuple (TVar _) _ -> return [p]
+                TMatrix (TVar _) _ -> return [p]
+                TFun t1 t2 -> funCheck t1 t2
+                TTuple (TFun t1 t2) _ -> funCheck t1 t2 -- sure about that?
+                TMatrix (TFun t1 t2) _ -> funCheck t1 t2
+                tc -> if tc `elem` types then return [] else throwError $ 
+                            show tc ++ " is not a member of class " ++ show c
