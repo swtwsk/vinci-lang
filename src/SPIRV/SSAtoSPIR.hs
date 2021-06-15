@@ -496,7 +496,10 @@ exprToSpir (STupleProj i (Var tuple t)) = do
     vars <- replicateM 2 nextVar
     let [resVar, tmp] = SpirId <$> vars
     tuple' <- SpirId <$> getRenamedVar tuple
-    let (TVector t' _) = t
+    let t' = case t of
+            TVector ti _ -> ti
+            TMatrix ti _ -> ti
+            _ -> undefined
     ptrVarType <- getTypeId (TPointer StorFunction t')
     varType <- getTypeId t'
     (iVar, _) <- getConstId (CUnsignedInt i)
@@ -640,6 +643,7 @@ getConstId c = gets _constants >>= \cs -> case Map.lookup c cs of
 -- | Return SpirId for specific type
 getTypeId :: SpirType -> SpirCompiler SpirId
 getTypeId t@(TVector inner _) = getTypeId inner >> getTypeId' t
+getTypeId t@(TMatrix inner _) = getTypeId inner >> getTypeId' t
 getTypeId t@(TPointer _ inner) = getTypeId inner >> getTypeId' t
 getTypeId t@(TFun ret args) =
     getTypeId ret >> mapM_ getTypeId args >> getTypeId' t
@@ -672,6 +676,7 @@ typesToOps = do
             TUnsignedInt -> return [OpTypeInt var 32 False]
             TFloat -> return [OpTypeFloat var 32]
             TVector t' size -> return [OpTypeVector var (typeIds Map.! t') size]
+            TMatrix t' size -> return [OpTypeMatrix var (typeIds Map.! t') size]
             TArray t' size -> do
                 iVar     <- SpirId <$> nextVar
                 let unsignedNotInMap = isNothing (Map.lookup TUnsignedInt typeIds)

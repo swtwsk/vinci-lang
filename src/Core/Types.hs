@@ -8,6 +8,7 @@ data Type = TInt
           | TBool
           | TFun Type Type
           | TTuple Type Int
+          | TMatrix Type Int
           | TStruct String
           | TSampler Int
           | TVar Tyvar
@@ -59,6 +60,7 @@ instance Show Type where
         TFun t1@TFun{} t2 -> "(" ++ show t1 ++ ") -> " ++ show t2
         TFun t1 t2 -> show t1 ++ " -> " ++ show t2
         TTuple t' i -> "(" ++ intercalate ", " (show <$> replicate i t') ++ ")"
+        TMatrix t' i -> "Mat" ++ show i ++ " of " ++ show t'
         TSampler i -> "Sampler" ++ show i ++ "D"
         TDummy -> "#"
 

@@ -35,6 +35,9 @@ data TCMState = TCMState { _tSupply :: Int
                          deriving (Show)
 type TCM a = ReaderT TCMEnv (StateT TCMState (Except String)) a
 
+maxTupleSize :: Int
+maxTupleSize = 4
+
 tiCoreManager :: CoreManager Maybe -> Either String (CoreManager Identity)
 tiCoreManager cm = do
     let env = TCMEnv { _typeEnv      = TypeEnv librarySchemeList
@@ -186,8 +189,17 @@ tiExpr tc@(TupleCons exprs) = do
     let headType:restTypes = (\(_ :=> t) -> t) <$> qtypes
     s2 <- foldM (foldFn headType) s1 restTypes
     ps <- entailOrThrow s2 . nub $ qtypes >>= (\(p :=> _) -> p)
-    let tupleConsType = ps :=> TTuple (apply s2 headType) (length exprs)
-    return (TupleCons texprs, s2, tupleConsType)
+    let tupleSize = length exprs
+    when (tupleSize > maxTupleSize) . throwError $ 
+        "Tuple " ++ show tc ++ " is too big - max tuple size is " ++ show maxTupleSize
+    tupleConsType <- case apply s2 headType of
+        TMatrix {} -> throwError $ "Cannot construct a tuple out of matrices in " ++ show tc
+        TTuple t r -> do
+            when (r /= tupleSize) . throwError $
+                "Matrix " ++ show tc ++ " has different column and row sizes"
+            return $ TMatrix t tupleSize
+        t -> return $ TTuple t tupleSize
+    return (TupleCons texprs, s2, ps :=> tupleConsType)
     where
         errorPrefix = "In " ++ show tc ++ " "
         foldFn headType s t = (`composeSubst` s) <$> 
@@ -198,6 +210,9 @@ tiExpr p@(TupleProj i e) = do
         TTuple t' size -> if i <= size
             then return (TupleProj i texpr, s, ps :=> apply s t')
             else throwError $ "Tuple " ++ show e ++ " has too few fields"
+        TMatrix t' size -> if i <= size
+            then return (TupleProj i texpr, s, ps :=> apply s (TTuple t' size))
+            else throwError $ "Matrix " ++ show e ++ " has too few rows"
         TStruct sName -> do
             structTypes <- asks _structDefMap
             fieldDefs <- case Map.lookup sName structTypes of
@@ -296,6 +311,9 @@ applySubstExpr (App e1 e2) = do
         unifyFunType (TFun (TTuple t1 _) _) (TTuple t _) = case t1 of
             TVar tv -> Map.singleton tv t
             _ -> nullSubst
+        unifyFunType (TFun (TMatrix t1 _) _) (TMatrix t _) = case t1 of
+            TVar tv -> Map.singleton tv t
+            _ -> nullSubst
         unifyFunType (TFun t1 _) t = case t1 of
             TVar tv -> Map.singleton tv t
             _ -> nullSubst
@@ -321,11 +339,16 @@ applySubstExpr (FieldGet fName e) = do
     return (FieldGet fName e', fieldType)
 applySubstExpr (TupleCons eList) = do
     eList' <- mapM applySubstExpr eList
-    return ( TupleCons (fst <$> eList')
-           , TTuple (head $ snd <$> eList') (length eList') )
+    let tupleType = case head $ snd <$> eList' of
+            TTuple ti i -> TMatrix ti i
+            ti -> TTuple ti (length eList')
+    return (TupleCons (fst <$> eList'), tupleType )
 applySubstExpr (TupleProj i e) = do
     (e', t) <- applySubstExpr e
-    let TTuple t' _ = t
+    let t' = case t of
+            TTuple ti _ -> ti
+            TMatrix ti s -> TTuple ti s
+            _ -> undefined
     return (TupleProj i e', t')
 applySubstExpr (Let (VarId v _) e1 e2) = do
     (e1', t) <- applySubstExpr e1
@@ -382,17 +405,19 @@ class Types a where
     ftv   :: a -> Set.Set Tyvar
 
 instance Types Type where
-    apply s (TVar u)     = case Map.lookup u s of
+    apply s (TVar u)      = case Map.lookup u s of
         Just t -> t
         Nothing -> TVar u
-    apply s (TTuple t i) = TTuple (apply s t) i
-    apply s (TFun t1 t2) = TFun (apply s t1) (apply s t2)
-    apply _ t            = t
+    apply s (TTuple t i)  = TTuple (apply s t) i
+    apply s (TMatrix t i) = TMatrix (apply s t) i
+    apply s (TFun t1 t2)  = TFun (apply s t1) (apply s t2)
+    apply _ t             = t
 
-    ftv (TVar n)     = Set.singleton n
-    ftv (TFun t1 t2) = ftv t1 `Set.union` ftv t2
-    ftv (TTuple t _) = ftv t
-    ftv _            = Set.empty
+    ftv (TVar n)      = Set.singleton n
+    ftv (TFun t1 t2)  = ftv t1 `Set.union` ftv t2
+    ftv (TTuple t _)  = ftv t
+    ftv (TMatrix t _) = ftv t
+    ftv _             = Set.empty
 
 instance Types a => Types [a] where
     apply s = map (apply s)
@@ -440,6 +465,9 @@ mgu (TFun l r) (TFun l' r') = do
 mgu t1@(TTuple t i) t2@(TTuple t' i')
     | i == i' = mgu t t'
     | otherwise = throwError $ "tuple size do not match: " ++ show t1 ++ " vs. " ++ show t2
+mgu t1@(TMatrix t i) t2@(TMatrix t' i')
+    | i == i' = mgu t t'
+    | otherwise = throwError $ "matrix size do not match: " ++ show t1 ++ " vs. " ++ show t2
 mgu (TVar u) t = varBind u t
 mgu t (TVar u) = varBind u t
 mgu t1 t2
@@ -470,5 +498,6 @@ entailOrThrow s preds = do
                 ps2 <- checkTypeByPredicate c p types t2
                 return $ ps1 ++ ps2
             TTuple t _ -> checkTypeByPredicate c p types t
+            TMatrix t _ -> checkTypeByPredicate c p types t
             tc -> if tc `elem` types then return [] else throwError $ 
                         show tc ++ " is not a member of class " ++ show c

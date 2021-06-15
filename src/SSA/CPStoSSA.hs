@@ -70,8 +70,12 @@ cExprToSSA (CPS.CLetVal x val cexpr) = do
         CPS.CLitInt i          -> SLitInt i
         CPS.CStruct sName vars -> 
             SStructCtr (TStruct sName NotUniform) $ varToSSA <$> vars
-        CPS.CTuple vars        -> 
-            SStructCtr (TVector TFloat $ length vars) $ varToSSA <$> vars
+        CPS.CTuple vars        ->
+            let innerType = cTypeToSSA . CPS._varType . head $ vars in
+            SStructCtr (TVector innerType (length vars)) $ varToSSA <$> vars
+        CPS.CMatrix vars       ->
+            let innerType = cTypeToSSA . CPS._varType . head $ vars in
+            SStructCtr (TMatrix innerType (length vars)) $ varToSSA <$> vars
     cExprToSSA cexpr
 cExprToSSA (CPS.CLetProj x i tuple cexpr) = do
     output $ SAssign (varToSSA x) (STupleProj i $ varToSSA tuple)
@@ -192,6 +196,7 @@ cTypeToSSA ct@(CPS.CTFun _ _) = TFun ret args
         aggregateTypes (CPS.CTFun t1' t2') = first (t1':) (aggregateTypes t2')
         aggregateTypes t = ([], t)
 cTypeToSSA (CPS.CTTuple t i) = TVector (cTypeToSSA t) i
+cTypeToSSA (CPS.CTMatrix t i) = TMatrix (TVector (cTypeToSSA t) i) i
 cTypeToSSA (CPS.CTStruct sName) = TStruct sName NotUniform
 cTypeToSSA (CPS.CTSampler i) = TSampledImage $ 
     TImage TFloat dim NotDepth NonArrayed SingleSampled WithSampler Unknown

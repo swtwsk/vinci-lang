@@ -9,6 +9,7 @@ data SpirType = TBool
               | TUnsignedInt
               | TFloat
               | TVector SpirType Int
+              | TMatrix SpirType Int
               | TArray SpirType Int
               | TImage SpirType SpirImageDim SpirImageDepth SpirImageArrayed SpirImageMultisampled SpirImageSampled SpirImageFormat
               | TSampledImage SpirType
@@ -26,6 +27,7 @@ instance Show SpirType where
     show TUnsignedInt = "uint"
     show TFloat = "float"
     show (TVector t size) = "v" ++ show size ++ show t
+    show (TMatrix t size) = "mat" ++ show size ++ show t
     show (TArray t size) = show t ++ "[" ++ show size ++ "]"
     show (TStruct sName _) = sName
     show (TSampledImage im) = "SampledImage for " ++ show im

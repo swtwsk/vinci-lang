@@ -87,8 +87,11 @@ coreExprToCPS (Core.FieldGet fName e) k = do
 coreExprToCPS (Core.TupleCons exprs) k = coreTupleTranslation exprs k
 coreExprToCPS (Core.TupleProj i e) k = do
     (_, x) <- nextVar
-    coreExprToCPS e $ \z@(CPS.Var _ (CPS.CTTuple t _)) -> do
-        let x' = CPS.Var x t
+    coreExprToCPS e $ \z@(CPS.Var _ t) -> do
+        let x' = CPS.Var x $ case t of
+                (CPS.CTTuple t' _) -> t'
+                (CPS.CTMatrix t' size) -> CPS.CTTuple t' size
+                _ -> undefined
         kApplied <- k x'
         return $ CPS.CLetProj x' i z kApplied
 coreExprToCPS (Core.Lit l) k = do
@@ -162,8 +165,11 @@ coreExprToCPSWithCont (Core.TupleCons exprs) k =
     coreTupleTranslation exprs (return . CPS.CAppCont k)
 coreExprToCPSWithCont (Core.TupleProj i e) k = do
     (_, x) <- nextVar
-    coreExprToCPS e $ \z@(CPS.Var _ (CPS.CTTuple t _)) -> do
-        let x' = CPS.Var x t
+    coreExprToCPS e $ \z@(CPS.Var _ t) -> do
+        let x' = CPS.Var x $ case t of
+                (CPS.CTTuple t' _) -> t'
+                (CPS.CTMatrix t' size) -> CPS.CTTuple t' size
+                _ -> undefined
         return $ CPS.CLetProj x' i z $ CPS.CAppCont k x'
 coreExprToCPSWithCont (Core.Lit l) k = do
     (_, xName) <- nextVar
@@ -207,8 +213,12 @@ coreTupleTranslation :: [Core.Expr Identity] -> CCont -> TranslateM CPS.CExpr
 coreTupleTranslation exprs kFun = 
     coreStructOrTupleTranslation exprs [] kFun typeCtr ctr
     where
-        typeCtr = \vars -> CPS.CTTuple (CPS._varType $ head vars) (length vars)
-        ctr = CPS.CTuple
+        typeCtr = \vars -> case CPS._varType $ head vars of
+            CPS.CTTuple ctype i -> CPS.CTMatrix ctype (length vars)
+            t -> CPS.CTTuple t (length vars)
+        ctr = \vars -> case CPS._varType $ head vars of
+            CPS.CTTuple _ _ -> CPS.CMatrix vars
+            _ -> CPS.CTuple vars
 
 coreStructTranslation :: String
                       -> [Core.Expr Identity]  
@@ -248,6 +258,7 @@ coreTypeTranslation Core.TInt = CPS.CTInt
 coreTypeTranslation (Core.TFun t1 t2) = 
     CPS.CTFun (coreTypeTranslation t1) (coreTypeTranslation t2)
 coreTypeTranslation (Core.TTuple t i) = CPS.CTTuple (coreTypeTranslation t) i
+coreTypeTranslation (Core.TMatrix t i) = CPS.CTMatrix (coreTypeTranslation t) i
 coreTypeTranslation (Core.TStruct sName) = CPS.CTStruct sName
 coreTypeTranslation (Core.TSampler i) = CPS.CTSampler i
 coreTypeTranslation Core.TDummy = undefined

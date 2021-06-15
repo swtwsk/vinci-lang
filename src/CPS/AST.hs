@@ -27,6 +27,7 @@ data CVal = CLitFloat Double
           | CLitBool Bool
           | CLitInt Int
           | CTuple [Var]
+          | CMatrix [Var]
           | CStruct String [Var]
           deriving Eq
 
@@ -42,6 +43,7 @@ data CType = CTFloat
            | CTInt
            | CTFun CType CType
            | CTTuple CType Int
+           | CTMatrix CType Int
            | CTSampler Int
            | CTStruct String
            | CTBottom            -- meaning applied continuation
@@ -150,6 +152,7 @@ instance AlphaEq CVal where
     (CLitFloat f1) `alphaReq` (CLitFloat f2) = return $ f1 == f2
     (CLitBool b1) `alphaReq` (CLitBool b2) = return $ b1 == b2
     (CTuple xs1) `alphaReq` (CTuple xs2) = and <$> zipWithM alphaReq xs1 xs2
+    (CMatrix xs1) `alphaReq` (CMatrix xs2) = and <$> zipWithM alphaReq xs1 xs2
     _ `alphaReq` _ = return False
 
 instance AlphaEq CFunDef where
@@ -198,6 +201,7 @@ instance Show CVal where
     show (CLitBool b) = show b
     show (CLitInt i) = show i
     show (CTuple vars) = "(" ++ intercalate ", " (show <$> vars) ++ ")"
+    show (CMatrix vars) = "(" ++ intercalate ", " (show <$> vars) ++ ")"
     show (CStruct sName vars) = 
         sName ++ " { " ++ intercalate ", " (show <$> vars) ++ " }"
 
@@ -220,6 +224,7 @@ instance Show CType where
         CTFun t1@CTFun{} t2 -> "(" ++ show t1 ++ ") -> " ++ show t2
         CTFun t1 t2 -> show t1 ++ " -> " ++ show t2
         CTTuple t' i -> intercalate " × " (show <$> replicate i t')
+        CTMatrix t' i -> "Mat" ++ show i ++ " of " ++ show t'
         CTStruct sName -> sName
         CTSampler i -> "Sampler" ++ show i ++ "D"
         CTBottom -> "⊥"

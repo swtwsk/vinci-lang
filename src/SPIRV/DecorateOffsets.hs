@@ -49,7 +49,11 @@ toStructMap structDefs typesToDecorate = Map.union basicTypes
                                   , (TBool, SizeOf 4 4)
                                   , (TVector TFloat 2, SizeOf 8 8)
                                   , (TVector TFloat 3, SizeOf 12 16)
-                                  , (TVector TFloat 4, SizeOf 16 16) ]
+                                  , (TVector TFloat 4, SizeOf 16 16)
+                                  , (TMatrix (TVector TFloat 2) 2, SizeOf 32 16)
+                                  , (TMatrix (TVector TFloat 3) 3, SizeOf 48 16)
+                                  , (TMatrix (TVector TFloat 4) 4, SizeOf 64 16)
+                                  ]
 
 tryDecorateOffset :: SpirType -> DecorateM (Int, Int)
 tryDecorateOffset spirType = do
@@ -59,11 +63,10 @@ tryDecorateOffset spirType = do
         SizeOf size alignment -> return (size, alignment)
 
 decorateOffsets' :: SpirType -> [SpirType] -> DecorateM (Int, Int)
-decorateOffsets' spirType fieldsTypes  = do
+decorateOffsets' spirType fieldsTypes = do
     typeId <- asks (Map.! spirType)
-    -- fieldAlg <- extendedFieldAlignment fieldsTypes
     size <- aggregateOffsets 0 0 typeId fieldsTypes
-    let alignment = 16  -- alignment for now, later matrix might break it?
+    let alignment = 16
     modify $ Map.insert spirType (SizeOf size alignment)
     return (size, alignment)
 
@@ -74,12 +77,14 @@ aggregateOffsets offset index spirId = \case
         let aligned    = offset + padding align
             nextOffset = aligned + size
         output $ OpMemberDecorate spirId index Offset [Left aligned]
+        when (isMatrix ty) $ decorateMatrix index spirId
         aggregateOffsets nextOffset (index + 1) spirId t
     []   -> return $ offset + padding 16
     where
         padding align = (align - (offset `mod` align)) `mod` align
+        isMatrix = \case { TMatrix _ _ -> True ; _ -> False }
 
--- extendedFieldAlignment :: [SpirType] -> DecorateM Int
--- extendedFieldAlignment = foldM foldFn 0
---     where
---         foldFn acc el = max acc . snd <$> tryDecorateOffset el
+decorateMatrix :: Int -> SpirId -> DecorateM ()
+decorateMatrix index spirId = do
+    output $ OpMemberDecorate spirId index ColMajor []
+    output $ OpMemberDecorate spirId index MatrixStride [Left 16]

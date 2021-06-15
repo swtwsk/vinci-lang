@@ -223,6 +223,7 @@ typeToCore F.TBool = TBool
 typeToCore (F.TStruct structName) = case structName of
     'V':'e':'c':i -> TTuple TFloat (read i)
     'I':'V':'e':'c':i -> TTuple TInt (read i)
+    'M':'a':'t':i -> TMatrix TFloat (read i)
     ['S', 'a', 'm', 'p', 'l', 'e', 'r', i, 'D'] -> TSampler (read [i])
     _ -> TStruct structName
 typeToCore (F.TPoly _) = undefined

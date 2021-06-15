@@ -64,6 +64,7 @@ data SpirOp = OpFunction SpirId SpirId SpirFunctionControl SpirId
             | OpTypeInt SpirId Int Bool
             | OpTypeFloat SpirId Int
             | OpTypeVector SpirId SpirId Int
+            | OpTypeMatrix SpirId SpirId Int
             | OpTypeArray SpirId SpirId SpirId
             | OpTypeStruct SpirId [SpirId]
             | OpTypeSampledImage SpirId SpirId
@@ -105,6 +106,8 @@ data SpirDecoration = Block
                     | Binding 
                     | DescriptorSet
                     | BuiltIn
+                    | ColMajor
+                    | MatrixStride
                     deriving (Eq, Show)
 
 data SpirBuiltIn = Position
@@ -227,6 +230,8 @@ instance Show SpirOp where
     show (OpTypeFloat res width) = show res ++ " = OpTypeFloat " ++ show width 
     show (OpTypeVector res t size) = 
         show res ++ " = OpTypeVector " ++ show t ++ " " ++ show size
+    show (OpTypeMatrix res t size) = 
+        show res ++ " = OpTypeMatrix " ++ show t ++ " " ++ show size
     show (OpTypeArray res t size) =
         show res ++ " = OpTypeArray " ++ show t ++ " " ++ show size
     show (OpTypeStruct res fieldTypes) =
