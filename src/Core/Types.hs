@@ -17,9 +17,17 @@ data Type = TInt
 
 newtype Tyvar = Tyvar String deriving (Eq, Ord, Show)
 
-data Class = ClassEq | ClassOrd | ClassNum | ClassFloating deriving (Eq, Ord)
+data Class = ClassEq
+           | ClassOrd 
+           | ClassNum 
+           | ClassFloating 
+           | ClassVector
+           | ClassMatrix
+           | ClassVectorOrMatrix
+           deriving (Eq, Ord)
 
-data Pred = IsIn Class Type 
+data Pred = IsIn Class Type
+          | SameSize Type Type
           deriving Eq
 
 data Qual t = [Pred] :=> t
@@ -41,10 +49,16 @@ classEnv = fromList [ (ClassEq,  concat [ t:vectors t | t <- [TBool, TInt, TFloa
                     , (ClassOrd, concat [ t:vectors t | t <- [TInt, TFloat] ])
                     , (ClassNum, concat [ t:vectors t | t <- [TInt, TFloat] ])
                     , (ClassFloating, TFloat:vectors TFloat)
+                    , (ClassVector, vectors TFloat)
+                    , (ClassMatrix, matrices TFloat)
+                    , (ClassVectorOrMatrix, vectors TFloat ++ matrices TFloat)
                     ]
 
 vectors :: Type -> [Type]
 vectors t = [ TTuple t i | i <- [2..4] ]
+
+matrices :: Type -> [Type]
+matrices t = [ TMatrix t i | i <- [2..4] ]
 
 -- SHOWS
 instance Show Type where
@@ -66,9 +80,13 @@ instance Show Type where
 
 instance Show Pred where
     show (IsIn c t) = show t ++ " in " ++ show c
+    show (SameSize t1 t2) = show t1 ++ " has the same size as " ++ show t2
 
 instance Show Class where
-    show ClassEq       = "Eq"
-    show ClassOrd      = "Ord"
-    show ClassNum      = "Num"
-    show ClassFloating = "Floating"
+    show ClassEq             = "Eq"
+    show ClassOrd            = "Ord"
+    show ClassNum            = "Num"
+    show ClassFloating       = "Floating"
+    show ClassVector         = "Vector"
+    show ClassMatrix         = "Matrix"
+    show ClassVectorOrMatrix = "VectorOrMatrix"

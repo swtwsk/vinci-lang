@@ -46,6 +46,9 @@ data Expr a
     | ETyped a (Expr a) (Type a)
     | ENeg a (Expr a)
     | ENot a (Expr a)
+    | EVecMatMul a (Expr a) (Expr a)
+    | EMatVecMul a (Expr a) (Expr a)
+    | EMatMatMul a (Expr a) (Expr a)
     | EMul a (Expr a) (Expr a)
     | EDiv a (Expr a) (Expr a)
     | EMod a (Expr a) (Expr a)
@@ -155,6 +158,9 @@ instance Eq (Expr a) where
     (ETyped _ el tl) == (ETyped _ er tr) = el == er && tl == tr
     (ENeg _ el) == (ENeg _ er) = el == er
     (ENot _ el) == (ENot _ er) = el == er
+    (EVecMatMul _ el1 el2) == (EVecMatMul _ er1 er2) = el1 == er1 && el2 == er2
+    (EMatVecMul _ el1 el2) == (EMatVecMul _ er1 er2) = el1 == er1 && el2 == er2
+    (EMatMatMul _ el1 el2) == (EMatMatMul _ er1 er2) = el1 == er1 && el2 == er2
     (EMul _ el1 el2) == (EMul _ er1 er2) = el1 == er1 && el2 == er2
     (EDiv _ el1 el2) == (EDiv _ er1 er2) = el1 == er1 && el2 == er2
     (EMod _ el1 el2) == (EMod _ er1 er2) = el1 == er1 && el2 == er2
@@ -256,6 +262,9 @@ instance HasPosition (Expr BNFC'Position) where
         ETyped p _ _ -> p
         ENeg p _ -> p
         ENot p _ -> p
+        EVecMatMul p _ _ -> p
+        EMatVecMul p _ _ -> p
+        EMatMatMul p _ _ -> p
         EMul p _ _ -> p
         EDiv p _ _ -> p
         EMod p _ _ -> p

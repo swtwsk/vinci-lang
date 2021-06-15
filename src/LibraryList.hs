@@ -19,6 +19,11 @@ data LibraryFunction = IntToFloat
                      | Texture1D
                      | Texture2D
                      | Texture3D
+                     | Scale
+                     | Dot
+                     | VecMatMul
+                     | MatVecMul
+                     | MatMatMul
                      | LibFun String
                      deriving (Eq, Ord, Read)
 
@@ -29,6 +34,11 @@ readLibraryFunction libFun = case libFun of
     "texture1D"  -> Texture1D
     "texture2D"  -> Texture2D
     "texture3D"  -> Texture3D
+    "scale"      -> Scale
+    "dot"        -> Dot
+    "vecMatMul"  -> VecMatMul
+    "matVecMul"  -> MatVecMul
+    "matMatMul"  -> MatMatMul
     s -> LibFun s
 
 -- based on the list of GLSL.std.450 extensions from
@@ -68,7 +78,7 @@ libraryList = Map.fromList
     , (LibFun "min",         (binNumOpScheme, floatOrIntFunName "FMin" "SMin"))
     , (LibFun "max",         (binNumOpScheme, floatOrIntFunName "FMax" "SMax"))
     , (LibFun "clamp",       (tripleNumOpScheme, floatOrIntFunName "FClamp" "SClamp"))
-    , (LibFun "mix",         (floatingTripleOpScheme, const "FMin"))
+    , (LibFun "mix",         (floatingTripleOpScheme, const "FMix"))
     , (LibFun "step",        (floatingBinOpScheme, const "Step"))
     , (LibFun "smoothstep",  (floatingTripleOpScheme, const "SmoothStep"))
     , (LibFun "length",      (floatingUnOpToScalarScheme, const "Length"))
@@ -78,11 +88,16 @@ libraryList = Map.fromList
     , (LibFun "faceforward", (floatingTripleOpScheme, const "FaceForward"))
     , (LibFun "reflect",     (floatingBinOpScheme, const "Reflect"))
     , (LibFun "refract",     (Scheme [Tyvar "a"] ([IsIn ClassFloating (TVar $ Tyvar "a")] :=> TFun (TVar $ Tyvar "a") (TFun (TVar $ Tyvar "a") (TFun TFloat (TVar $ Tyvar "a")))), const "Refract"))
-    , (Texture1D,     (Scheme [] ([] :=> TFun (TSampler 1) (TFun TFloat (TTuple TFloat 4))), undefined))
-    , (Texture2D,     (Scheme [] ([] :=> TFun (TSampler 2) (TFun (TTuple TFloat 2) (TTuple TFloat 4))), undefined))
-    , (Texture3D,     (Scheme [] ([] :=> TFun (TSampler 3) (TFun (TTuple TFloat 3) (TTuple TFloat 4))), undefined))
-    , (FloatToInt,    (Scheme [] ([] :=> TFun TFloat TInt), undefined))
-    , (IntToFloat,    (Scheme [] ([] :=> TFun TInt TFloat), undefined))
+    , (Texture1D,  (Scheme [] ([] :=> TFun (TSampler 1) (TFun TFloat (TTuple TFloat 4))), undefined))
+    , (Texture2D,  (Scheme [] ([] :=> TFun (TSampler 2) (TFun (TTuple TFloat 2) (TTuple TFloat 4))), undefined))
+    , (Texture3D,  (Scheme [] ([] :=> TFun (TSampler 3) (TFun (TTuple TFloat 3) (TTuple TFloat 4))), undefined))
+    , (FloatToInt, (Scheme [] ([] :=> TFun TFloat TInt), undefined))
+    , (IntToFloat, (Scheme [] ([] :=> TFun TInt TFloat), undefined))
+    , (Scale,      (Scheme [Tyvar "a"] ([IsIn ClassVectorOrMatrix (TVar $ Tyvar "a")] :=> TFun (TVar $ Tyvar "a") (TFun TFloat (TVar $ Tyvar "a"))), undefined))
+    , (Dot,        (floatingBinOpToScalarScheme, undefined))
+    , (VecMatMul,  (Scheme [Tyvar "a", Tyvar "b"] ([IsIn ClassVector (TVar $ Tyvar "a"), IsIn ClassMatrix (TVar $ Tyvar "b"), SameSize (TVar $ Tyvar "a") (TVar $ Tyvar "b")] :=> TFun (TVar $ Tyvar "a") (TFun (TVar $ Tyvar "b") (TVar $ Tyvar "a"))), undefined))
+    , (MatVecMul,  (Scheme [Tyvar "a", Tyvar "b"] ([IsIn ClassMatrix (TVar $ Tyvar "a"), IsIn ClassVector (TVar $ Tyvar "b"), SameSize (TVar $ Tyvar "a") (TVar $ Tyvar "b")] :=> TFun (TVar $ Tyvar "a") (TFun (TVar $ Tyvar "b") (TVar $ Tyvar "b"))), undefined))
+    , (MatMatMul,  (binOpScheme ClassMatrix, undefined))
     ]
     where
         floatOrIntFunName floatName intName t = case t of
@@ -180,4 +195,9 @@ instance Show LibraryFunction where
     show Texture3D  = "texture3D"
     show IntToFloat = "intToFloat"
     show FloatToInt = "floatToInt"
+    show Scale      = "scale"
+    show Dot        = "dot"
+    show VecMatMul  = "vecMatMul"
+    show MatVecMul  = "matVecMul"
+    show MatMatMul  = "matMatMul"
     show (LibFun f) = f

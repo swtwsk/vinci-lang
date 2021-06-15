@@ -173,6 +173,9 @@ instance Print (Parser.AbsVinci.Expr a) where
     Parser.AbsVinci.ETyped _ expr type_ -> prPrec i 6 (concatD [doc (showString "("), prt 0 expr, doc (showString ":"), prt 0 type_, doc (showString ")")])
     Parser.AbsVinci.ENeg _ expr -> prPrec i 5 (concatD [doc (showString "-"), prt 6 expr])
     Parser.AbsVinci.ENot _ expr -> prPrec i 5 (concatD [doc (showString "not"), prt 6 expr])
+    Parser.AbsVinci.EVecMatMul _ expr1 expr2 -> prPrec i 4 (concatD [prt 4 expr1, doc (showString ".*"), prt 5 expr2])
+    Parser.AbsVinci.EMatVecMul _ expr1 expr2 -> prPrec i 4 (concatD [prt 4 expr1, doc (showString "*."), prt 5 expr2])
+    Parser.AbsVinci.EMatMatMul _ expr1 expr2 -> prPrec i 4 (concatD [prt 4 expr1, doc (showString "@"), prt 5 expr2])
     Parser.AbsVinci.EMul _ expr1 expr2 -> prPrec i 4 (concatD [prt 4 expr1, doc (showString "*"), prt 5 expr2])
     Parser.AbsVinci.EDiv _ expr1 expr2 -> prPrec i 4 (concatD [prt 4 expr1, doc (showString "/"), prt 5 expr2])
     Parser.AbsVinci.EMod _ expr1 expr2 -> prPrec i 4 (concatD [prt 4 expr1, doc (showString "%"), prt 5 expr2])
@@ -205,6 +208,7 @@ instance Print (Parser.AbsVinci.LambdaVI a) where
 instance Print (Parser.AbsVinci.FieldDef a) where
   prt i = \case
     Parser.AbsVinci.FieldDef _ vident expr -> prPrec i 0 (concatD [prt 0 vident, doc (showString "="), prt 0 expr])
+  prtList _ [] = concatD []
   prtList _ [x] = concatD [prt 0 x]
   prtList _ (x:xs) = concatD [prt 0 x, doc (showString ","), prt 0 xs]
 
@@ -228,6 +232,7 @@ instance Print (Parser.AbsVinci.StructDef a) where
 instance Print (Parser.AbsVinci.FieldDecl a) where
   prt i = \case
     Parser.AbsVinci.FieldDecl _ attr vident type_ -> prPrec i 0 (concatD [prt 0 attr, prt 0 vident, doc (showString ":"), prt 0 type_])
+  prtList _ [] = concatD []
   prtList _ [x] = concatD [prt 0 x]
   prtList _ (x:xs) = concatD [prt 0 x, doc (showString ","), prt 0 xs]
 

@@ -51,11 +51,11 @@ The reserved words used in Vinci are the following:
 The symbols used in Vinci are the following:
   | = | ;; | . | (
   | , | ) | : | -
-  | * | / | % | +
-  | < | <= | > | >=
-  | == | != | && | ||
-  | \ | -> | { | }
-  | _ | @ |  |
+  | .* | *. | @ | *
+  | / | % | + | <
+  | <= | > | >= | ==
+  | != | && | || | \
+  | -> | { | } | _
 
 ===Comments===
 Single-line comments begin with #.There are no multiple-line comments in the grammar.
@@ -95,7 +95,10 @@ All other symbols are terminals.
   | //Expr5// | -> | ``-`` //Expr6//
   |  |  **|**  | ``not`` //Expr6//
   |  |  **|**  | //Expr6//
-  | //Expr4// | -> | //Expr4// ``*`` //Expr5//
+  | //Expr4// | -> | //Expr4// ``.*`` //Expr5//
+  |  |  **|**  | //Expr4// ``*.`` //Expr5//
+  |  |  **|**  | //Expr4// ``@`` //Expr5//
+  |  |  **|**  | //Expr4// ``*`` //Expr5//
   |  |  **|**  | //Expr4// ``/`` //Expr5//
   |  |  **|**  | //Expr4// ``%`` //Expr5//
   |  |  **|**  | //Expr5//

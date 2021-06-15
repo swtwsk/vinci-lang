@@ -91,20 +91,30 @@ specializeExpr e@App {} = do
     let (f, args) = aggregateApplications e
     (args', types) <- mapAndUnzipM specializeExpr args
     let Var (Var' fName _) = f -- ?
-    (f', fType') <- case Map.lookup fName coreLibraryList of
-        Just t -> return (f, unifyLibFunType t types)
+    (f', fType) <- case Map.lookup fName coreLibraryList of
+        Just t -> 
+            let fType = unifyLibFunType t types Map.empty in
+            return (Var (Var' fName fType), fType)
         Nothing -> do
             prog <- asks $ (Map.! fName) . _funs
             (f', fType) <- first Var <$> specializeProg types prog
-            let (Just fType') = resType (length args) fType
-            return (f', fType')
+            return (f', fType)
+    let (Just fType') = resType (length args) fType
     return (foldl App f' args', fType')
     where
-        unifyLibFunType :: Type -> [Type] -> Type
-        unifyLibFunType (TFun t1 t2) (h:t) = TFun (snd $ unify t1 h) (unifyLibFunType t2 t)
-        unifyLibFunType t1 [t2] = snd $ unify t1 t2
-        unifyLibFunType t [] = t
-        unifyLibFunType _ _ = undefined
+        unifyLibFunType :: Type -> [Type] -> TyVarRenameMap -> Type
+        unifyLibFunType (TFun t1 t2) (h:t) rs =
+            let (tyvar, t1') = unify t1 h in
+            let rs' = maybe rs (\tv -> Map.insert tv t1' rs) tyvar in
+            TFun t1' (unifyLibFunType t2 t rs')
+        unifyLibFunType t1 [t2] _ = snd $ unify t1 t2
+        unifyLibFunType t [] rs = case t of
+            TVar tyvar -> rs Map.! tyvar
+            TFun (TVar tv1) (TVar tv2) -> TFun (rs Map.! tv1) (rs Map.! tv2)
+            TFun (TVar tv1) t2 -> TFun (rs Map.! tv1) t2
+            TFun t1 (TVar tv2) -> TFun t1 (rs Map.! tv2)
+            _ -> t
+        unifyLibFunType _ _ _ = undefined
 specializeExpr (If c e1 e2) = do
     (c', _) <- specializeExpr c
     (e1', t) <- specializeExpr e1
@@ -121,11 +131,16 @@ specializeExpr (FieldGet fName e) = do
     return (FieldGet fName e', ft)
 specializeExpr (TupleCons exprs) = do
     (exprs', types) <- mapAndUnzipM specializeExpr exprs
-    let t = head types
-    return (TupleCons exprs', TTuple t (length exprs'))
+    let t = case head types of
+            TTuple t' _ -> TMatrix t' (length exprs')
+            t' -> TTuple t' (length exprs')
+    return (TupleCons exprs', t)
 specializeExpr (TupleProj i e) = do
     (e', t) <- specializeExpr e
-    let TTuple t' _ = t
+    let t' = case t of
+            TTuple ti _ -> ti
+            TMatrix ti size -> TTuple ti size
+            _ -> undefined
     return (TupleProj i e', t')
 specializeExpr (Let var e1 e2) = do
     (var', t) <- specializeVar var
@@ -170,6 +185,9 @@ specializeFunctionType tvs (TVar tv) = case Map.lookup tv tvs of
 specializeFunctionType tvs (TTuple t i) = 
     let (t', suffix) = specializeFunctionType tvs t in
     (TTuple t' i, suffix)
+specializeFunctionType tvs (TMatrix t i) = 
+    let (t', suffix) = specializeFunctionType tvs t in
+    (TMatrix t' i, suffix)
 specializeFunctionType _ t = (t, "")
 
 specializedTypeSuffix :: Type -> String
@@ -177,8 +195,9 @@ specializedTypeSuffix TInt = "Int"
 specializedTypeSuffix TBool = "Bool"
 specializedTypeSuffix TFloat = "Float"
 specializedTypeSuffix (TTuple t i) = "T" ++ specializedTypeSuffix t ++ show i
+specializedTypeSuffix (TMatrix t i) = "M" ++ specializedTypeSuffix t ++ show i
 specializedTypeSuffix (TStruct sName) = "S" ++ sName
-specializedTypeSuffix _ = undefined
+specializedTypeSuffix t = error $ "Cannot create specialized suffix for " ++ show t
 
 unifyTypes :: [VarId Identity] -> [Type] -> ([(VarName, Type)], TyVarRenameMap)
 unifyTypes (VarId v (Identity vt1):vars) (vt2:types) = 
@@ -195,6 +214,9 @@ unify (TVar _) (TVar _) = undefined
 unify (TVar tv1) t2 = (Just tv1, t2)
 unify (TTuple t1 i1) (TTuple t2 i2) 
     | i1 == i2 = second (`TTuple` i1) (unify t1 t2)
+    | otherwise = undefined
+unify (TMatrix t1 i1) (TMatrix t2 i2) 
+    | i1 == i2 = second (`TMatrix` i1) (unify t1 t2)
     | otherwise = undefined
 unify t1 t2 | t1 == t2  = (Nothing, t1)
             | otherwise = undefined

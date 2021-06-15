@@ -457,33 +457,12 @@ exprToSpir (SApp (Var fName fType) args) = do
             zipWithM_ (\arg (tmp', argType) -> output (OpLoad tmp' argType arg)) 
                 args'' (zip argTmps' argTypes)
             extInstId <- getExtInstId "GLSL.std.450"
-
-            output $ libraryOp libFun tmp retType argTmps' extInstId fun rt
+            let libOp = getSpirOpForLibraryFunction libFun tmp retType argTmps' 
+                            extInstId fun rt
+            output libOp
         Nothing     ->
             output $ OpFunctionCall tmp retType (SpirId fName) args''
     return (tmp, rt)
-    where
-        libraryOp :: LibraryFunction 
-                  -> SpirId 
-                  -> SpirId 
-                  -> [SpirId] 
-                  -> SpirId 
-                  -> (SpirType -> String) 
-                  -> SpirType 
-                  -> SpirOp
-        libraryOp IntToFloat tmp retTypeId [arg] _ _ _ = 
-            OpConvertSToF tmp retTypeId arg
-        libraryOp FloatToInt tmp retTypeId [arg] _ _ _ = 
-            OpConvertFToS tmp retTypeId arg
-        libraryOp (LibFun _) tmp retTypeId argTmps extInstId retTypeToNameFunction retType = 
-            OpExtInst tmp retTypeId extInstId (retTypeToNameFunction retType) argTmps
-        libraryOp Texture1D tmp retTypeId [arg1, arg2] _ _ _ = 
-            OpImageSampleImplicitLod tmp retTypeId arg1 arg2
-        libraryOp Texture2D tmp retTypeId [arg1, arg2] _ _ _ =
-            OpImageSampleImplicitLod tmp retTypeId arg1 arg2
-        libraryOp Texture3D tmp retTypeId [arg1, arg2] _ _ _ =
-            OpImageSampleImplicitLod tmp retTypeId arg1 arg2
-        libraryOp _ _ _ _ _ _ _ = undefined
 exprToSpir (SStructCtr sType vars) = do
     loaded <- forM vars $ \var -> exprToSpir (SVar var)
     tmp <- SpirId <$> nextVar
@@ -545,7 +524,7 @@ exprToSpir (SBinOp op e1 e2) = do
         (OpGTEq, TFloat)  -> OpFOrdGreaterThanEqual v boolType t1 t2
         (OpAnd, _) -> OpLogicalAnd v boolType t1 t2
         (OpOr, _)  -> OpLogicalOr v boolType t1 t2
-        _ -> undefined
+        _ -> error $ "Cannot find output for pair " ++ show (op, innerExprType)
     return (v, et)
 exprToSpir (SUnOp op e) = do
     (te, t) <- exprToSpir e
@@ -602,6 +581,41 @@ getExtInstId extInstSetName = gets _extInstImports >>= \ei -> case Map.lookup ex
             insertFn      = Map.insert extInstSetName extInstImport
         modify $ \st -> st { _extInstImports = insertFn (_extInstImports st) }
         return extInstId
+
+-- | Returns specific `SpirOp` based on given `LibraryFunction` argument
+getSpirOpForLibraryFunction :: LibraryFunction 
+                            -> SpirId 
+                            -> SpirId 
+                            -> [SpirId] 
+                            -> SpirId 
+                            -> (SpirType -> String) 
+                            -> SpirType 
+                            -> SpirOp
+getSpirOpForLibraryFunction (LibFun _) tmp retTypeId argTmps extInstId retTypeToNameFunction retType = 
+    OpExtInst tmp retTypeId extInstId (retTypeToNameFunction retType) argTmps
+getSpirOpForLibraryFunction IntToFloat tmp retTypeId [arg] _ _ _ = 
+    OpConvertSToF tmp retTypeId arg
+getSpirOpForLibraryFunction FloatToInt tmp retTypeId [arg] _ _ _ = 
+    OpConvertFToS tmp retTypeId arg
+getSpirOpForLibraryFunction Texture1D tmp retTypeId [arg1, arg2] _ _ _ = 
+    OpImageSampleImplicitLod tmp retTypeId arg1 arg2
+getSpirOpForLibraryFunction Texture2D tmp retTypeId [arg1, arg2] _ _ _ =
+    OpImageSampleImplicitLod tmp retTypeId arg1 arg2
+getSpirOpForLibraryFunction Texture3D tmp retTypeId [arg1, arg2] _ _ _ =
+    OpImageSampleImplicitLod tmp retTypeId arg1 arg2
+getSpirOpForLibraryFunction VecMatMul tmp retTypeId [arg1, arg2] _ _ _ =
+    OpVectorTimesMatrix tmp retTypeId arg1 arg2
+getSpirOpForLibraryFunction MatVecMul tmp retTypeId [arg1, arg2] _ _ _ =
+    OpMatrixTimesVector tmp retTypeId arg1 arg2
+getSpirOpForLibraryFunction MatMatMul tmp retTypeId [arg1, arg2] _ _ _ =
+    OpMatrixTimesMatrix tmp retTypeId arg1 arg2
+getSpirOpForLibraryFunction Scale tmp retTypeId [arg1, arg2] _ _ retType = case retType of
+    TMatrix _ _ -> OpMatrixTimesScalar tmp retTypeId arg1 arg2
+    TVector _ _ -> OpVectorTimesScalar tmp retTypeId arg1 arg2
+    _ -> undefined
+getSpirOpForLibraryFunction Dot tmp retTypeId [arg1, arg2] _ _ _ =
+    OpDot tmp retTypeId arg1 arg2
+getSpirOpForLibraryFunction _ _ _ _ _ _ _ = undefined
 
 getConstId :: SConst -> SpirCompiler (SpirId, SpirType)
 getConstId c@(CBool b) = gets _constants >>= \cs -> case Map.lookup c cs of

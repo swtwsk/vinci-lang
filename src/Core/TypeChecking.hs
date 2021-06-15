@@ -428,8 +428,10 @@ instance Types t => Types (Qual t) where
     ftv (ps :=> t)     = ftv ps `Set.union` ftv t
 
 instance Types Pred where
-    apply s (IsIn i t) = IsIn i (apply s t)
-    ftv (IsIn _ t)     = ftv t
+    apply s (IsIn i t)       = IsIn i (apply s t)
+    apply s (SameSize t1 t2) = SameSize (apply s t1) (apply s t2)
+    ftv (IsIn _ t)           = ftv t
+    ftv (SameSize t1 t2)     = ftv t1 `Set.union` ftv t2
 
 instance Types Scheme where
     apply s (Scheme vars t) = Scheme vars (apply (foldr Map.delete s vars) t)
@@ -483,11 +485,24 @@ varBind u t
 entailOrThrow :: Subst -> [Pred] -> TCM [Pred]
 entailOrThrow s preds = do
     let substPreds = apply s preds
-    preds' <- forM substPreds $ \p@(IsIn c t) -> do
-        types <- asks (Map.lookup c . _classEnv) >>= \case
-            Just classDef -> return classDef
-            Nothing -> throwError $ "Unexpected class " ++ show c
-        checkTypeByPredicate c p types t
+    preds' <- forM substPreds $ \case
+        p@(IsIn c t) -> do
+            types <- asks (Map.lookup c . _classEnv) >>= \case
+                Just classDef -> return classDef
+                Nothing -> throwError $ "Unexpected class " ++ show c
+            checkTypeByPredicate c p types t
+        p@(SameSize t1 t2) -> case (t1, t2) of
+            (TVar _, _) -> return [p]
+            (_, TVar _) -> return [p]
+            (TMatrix _ i1, TMatrix _ i2) -> checkSameSize i1 i2 t1 t2
+            (TMatrix _ i1, TTuple _ i2)  -> checkSameSize i1 i2 t1 t2
+            (TTuple _ i1, TMatrix _ i2)  -> checkSameSize i1 i2 t1 t2
+            (TTuple _ i1, TTuple _ i2)   -> checkSameSize i1 i2 t1 t2
+            (TMatrix _ _, _) -> throwError $ show t2 ++ " is not a sizeable type"
+            (TTuple _ _, _) -> throwError $ show t2 ++ " is not a sizeable type"
+            (_, TMatrix _ _) -> throwError $ show t1 ++ " is not a sizeable type"
+            (_, TTuple _ _) -> throwError $ show t1 ++ " is not a sizeable type"
+            _ -> throwError $ "Types " ++ show t1 ++ " and " ++ show t2 ++ " are not sizeable"
     return $ concat preds'
     where
         checkTypeByPredicate :: Class -> Pred -> [Type] -> Type -> TCM [Pred]
@@ -506,3 +521,9 @@ entailOrThrow s preds = do
                 TMatrix (TFun t1 t2) _ -> funCheck t1 t2
                 tc -> if tc `elem` types then return [] else throwError $ 
                             show tc ++ " is not a member of class " ++ show c
+
+        checkSameSize :: Int -> Int -> Type -> Type -> TCM [Pred]
+        checkSameSize i1 i2 t1 t2
+            | i1 == i2  = return []
+            | otherwise = throwError $ "Expected for " ++ show t1 ++ " and " ++ 
+                                       show t2 ++ " to have the same size"

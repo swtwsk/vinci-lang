@@ -49,6 +49,9 @@ instance Transpilable (Abs.Expr a) Expr where
     transpile (Abs.ETyped _ expr t) = ETyped (transpile expr) (transpile t)
     transpile (Abs.ENeg _ expr) = ENeg $ transpile expr
     transpile (Abs.ENot _ expr) = ENot $ transpile expr
+    transpile (Abs.EVecMatMul _ e1 e2) = EVecMatMul (transpile e1) (transpile e2)
+    transpile (Abs.EMatVecMul _ e1 e2) = EMatVecMul (transpile e1) (transpile e2)
+    transpile (Abs.EMatMatMul _ e1 e2) = EMatMatMul (transpile e1) (transpile e2)
     transpile (Abs.EMul _ e1 e2) = EMul (transpile e1) (transpile e2) 
     transpile (Abs.EDiv _ e1 e2) = EDiv (transpile e1) (transpile e2)
     transpile (Abs.EMod _ e1 e2) = EMod (transpile e1) (transpile e2)

@@ -31,6 +31,9 @@ data Expr = EId String
           | ETyped Expr Type
           | ENeg Expr
           | ENot Expr
+          | EVecMatMul Expr Expr
+          | EMatVecMul Expr Expr
+          | EMatMatMul Expr Expr
           | EMul Expr Expr
           | EDiv Expr Expr
           | EMod Expr Expr
@@ -104,6 +107,9 @@ instance Show Expr where
     show (ETyped expr t) = "(" ++ show expr ++ " : " ++ show t ++ ")"
     show (ENeg e) = "-" ++ show e
     show (ENot e) = "not " ++ show e
+    show (EVecMatMul e1 e2) = show e1 ++ " .* " ++ show e2
+    show (EMatVecMul e1 e2) = show e1 ++ " *. " ++ show e2
+    show (EMatMatMul e1 e2) = show e1 ++ " @ " ++ show e2
     show (EMul e1 e2) = show e1 ++ " * " ++ show e2
     show (EDiv e1 e2) = show e1 ++ " / " ++ show e2
     show (EMod e1 e2) = show e1 ++ " % " ++ show e2

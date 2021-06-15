@@ -58,6 +58,12 @@ data SpirOp = OpFunction SpirId SpirId SpirFunctionControl SpirId
             | OpConvertFToS SpirId SpirId SpirId
             | OpConvertSToF SpirId SpirId SpirId
             | OpImageSampleImplicitLod SpirId SpirId SpirId SpirId
+            | OpVectorTimesScalar SpirId SpirId SpirId SpirId
+            | OpMatrixTimesScalar SpirId SpirId SpirId SpirId
+            | OpVectorTimesMatrix SpirId SpirId SpirId SpirId
+            | OpMatrixTimesVector SpirId SpirId SpirId SpirId
+            | OpMatrixTimesMatrix SpirId SpirId SpirId SpirId
+            | OpDot SpirId SpirId SpirId SpirId
 
             | OpTypeVoid SpirId
             | OpTypeBool SpirId
@@ -222,6 +228,18 @@ instance Show SpirOp where
         showOpWithResult res "OpConvertSToF" [resT, x]
     show (OpImageSampleImplicitLod res resT sampledImage coord) =
         showOpWithResult res "OpImageSampleImplicitLod" [resT, sampledImage, coord]
+    show (OpVectorTimesScalar res resT x y) =
+        showOpWithResult res "OpVectorTimesScalar" [resT, x, y]
+    show (OpMatrixTimesScalar res resT x y) =
+        showOpWithResult res "OpMatrixTimesScalar" [resT, x, y]
+    show (OpVectorTimesMatrix res resT x y) = 
+        showOpWithResult res "OpVectorTimesMatrix" [resT, x, y]
+    show (OpMatrixTimesVector res resT x y) = 
+        showOpWithResult res "OpMatrixTimesVector" [resT, x, y]
+    show (OpMatrixTimesMatrix res resT x y) = 
+        showOpWithResult res "OpMatrixTimesMatrix" [resT, x, y]
+    show (OpDot res resT x y) =
+        showOpWithResult res "OpDot" [resT, x, y]
     show (OpTypeVoid res) = showOpWithResult res "OpTypeVoid" []
     show (OpTypeBool res) = showOpWithResult res "OpTypeBool" []
     show (OpTypeInt res width signed) = 

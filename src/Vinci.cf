@@ -34,6 +34,9 @@ ETyped.     Expr6    ::= "(" Expr ":" Type ")" ;
 
 ENeg.       Expr5    ::= "-" Expr6 ;
 ENot.       Expr5    ::= "not" Expr6 ;
+EVecMatMul. Expr4    ::= Expr4 ".*" Expr5 ;
+EMatVecMul. Expr4    ::= Expr4 "*." Expr5 ;
+EMatMatMul. Expr4    ::= Expr4 "@" Expr5 ;
 EMul.       Expr4    ::= Expr4 "*" Expr5 ;
 EDiv.       Expr4    ::= Expr4 "/" Expr5 ;
 EMod.       Expr4    ::= Expr4 "%" Expr5 ;

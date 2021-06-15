@@ -17,6 +17,8 @@ import Core.CoreManager (CoreBindingsManager (..), TypeSynonymsMap)
 import Core.Ops
 import Core.Toposort (inverselySortTopologically)
 import Core.Types (Type(..), Tyvar(..))
+
+import LibraryList (LibraryFunction(MatMatMul, VecMatMul, MatVecMul))
 import ManglingPrefixes (frontendToCoreVarPrefix)
 import StructDefMap (StructDefMap, StructName, FieldDef)
 import Utils.Tuple (fstTriple)
@@ -101,6 +103,18 @@ exprToCore (F.ETyped (F.EId var) t) =
 exprToCore (F.ETyped _e _t) = undefined
 exprToCore (F.ENeg e) = unOpToCore OpNeg e
 exprToCore (F.ENot e) = unOpToCore OpNot e
+exprToCore (F.EVecMatMul e1 e2) = do
+    e1' <- exprToCore e1
+    e2' <- exprToCore e2
+    return $ App (App (Var $ VarId (show VecMatMul) Nothing) e1') e2'
+exprToCore (F.EMatVecMul e1 e2) = do
+    e1' <- exprToCore e1
+    e2' <- exprToCore e2
+    return $ App (App (Var $ VarId (show MatVecMul) Nothing) e1') e2'
+exprToCore (F.EMatMatMul e1 e2) = do
+    e1' <- exprToCore e1
+    e2' <- exprToCore e2
+    return $ App (App (Var $ VarId (show MatMatMul) Nothing) e1') e2'
 exprToCore (F.EMul e1 e2) = binOpToCore OpMul e1 e2
 exprToCore (F.EDiv e1 e2) = binOpToCore OpDiv e1 e2
 exprToCore (F.EMod e1 e2) = binOpToCore OpMod e1 e2
