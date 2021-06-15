@@ -159,14 +159,14 @@ specializeFunctionType tvs (TFun (TVar tv) t2) =
     let (t2', suffix) = specializeFunctionType tvs t2 in
     case Map.lookup tv tvs of
         Nothing -> undefined
-        Just t  -> (TFun t t2', "_$" ++ specializedTypeSuffix t ++ suffix)
+        Just t  -> (TFun t t2', "_T" ++ specializedTypeSuffix t ++ suffix)
 specializeFunctionType tvs (TFun t1 t2) =
     let (t1', suffix1) = specializeFunctionType tvs t1
         (t2', suffix2) = specializeFunctionType tvs t2 in
     (TFun t1' t2', suffix1 ++ suffix2)
 specializeFunctionType tvs (TVar tv) = case Map.lookup tv tvs of
     Nothing -> undefined
-    Just t  -> (t, "_$" ++ specializedTypeSuffix t)
+    Just t  -> (t, "_T" ++ specializedTypeSuffix t)
 specializeFunctionType tvs (TTuple t i) = 
     let (t', suffix) = specializeFunctionType tvs t in
     (TTuple t' i, suffix)

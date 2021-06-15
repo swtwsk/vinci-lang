@@ -262,8 +262,10 @@ applySubstProg' (Prog (VarId fName (Identity fType)) args e) = do
     let fType' = apply s fType
         appliedArgs = (\(Var' an at) -> (an, apply s at)) <$> args
         args' = uncurry Var' <$> appliedArgs
+    preModified <- get
     modify (Map.insert fName fType' . Map.union (Map.fromList appliedArgs))
     (e', _) <- applySubstExpr e
+    put preModified
     return (Prog (Var' fName fType') args' e', fType)
 
 applyUnifiedFunType :: Subst -> TExpr -> ApplyM TExpr

@@ -18,8 +18,10 @@ import Core.Types (Type(..))
 import LibraryList (coreLibraryList)
 
 type FunName = String
-type LiftMap = Map.Map FunName [VarId Identity]
+type Prefix  = String
+type LiftMap = Map.Map FunName ([VarId Identity], Prefix)
 data LiftEnv = LiftEnv { _globals :: Set.Set (VarId Identity)
+                       , _prefix  :: Prefix
                        , _lifts   :: LiftMap }
 type LiftM = Reader LiftEnv
 
@@ -35,12 +37,12 @@ lambdaLiftProgs progs = progs >>= lambdaLiftProg'
 parameterLiftProg :: Set.Set (VarId Identity) -> Prog Identity -> Prog Identity
 parameterLiftProg globals prog = runReader (parameterLiftDef prog) env
     where
-        env = LiftEnv { _globals = globals, _lifts = Map.empty }
+        env = LiftEnv { _globals = globals, _prefix = "", _lifts = Map.empty }
 
 parameterLiftDef :: Prog Identity -> LiftM (Prog Identity)
-parameterLiftDef (Prog fName args e) = do
-    e' <- parameterLiftExpr e
-    applySolutionToDef (Prog fName args e')
+parameterLiftDef (Prog f@(VarId fName _) args e) = do
+    e' <- local (\env -> env { _prefix = _prefix env ++ '_':fName }) (parameterLiftExpr e)
+    applySolutionToDef (Prog f args e')
 
 parameterLiftExpr :: Expr Identity -> LiftM (Expr Identity)
 parameterLiftExpr v@(Var _) = applySolutionToExpr v
@@ -64,14 +66,14 @@ parameterLiftExpr (Let n e1 e2) = do
     e2' <- parameterLiftExpr e2
     return $ Let n e1' e2'
 parameterLiftExpr (LetFun p@(Prog f@(VarId n _) args e1) e2) = do
-    LiftEnv globals lifts <- ask
+    LiftEnv globals prefix lifts <- ask
     let fv  = freeVariablesExpr e1 (Set.union (Set.fromList (f:args)) globals)
         fv' = Set.toList fv
         -- we can use dummyType because Eq looks just on name of the VarId
-        mergeFun acc g gVars = 
+        mergeFun acc g (gVars, _) = 
             if Set.member (Var' g TDummy) fv then acc ++ gVars else acc
         fv''   = Map.foldlWithKey mergeFun fv' lifts
-        lifts' = Map.insert n fv'' lifts
+        lifts' = Map.insert n (fv'', prefix) lifts
     p'  <- local (\r -> r { _lifts = lifts' }) (parameterLiftDef p)
     e2' <- local (\r -> r { _lifts = lifts' }) (parameterLiftExpr e2)
     return $ LetFun p' e2'
@@ -83,18 +85,18 @@ parameterLiftExpr (UnOp op e) = UnOp op <$> parameterLiftExpr e
 
 applySolutionToDef :: Prog Identity -> LiftM (Prog Identity)
 applySolutionToDef p@(Prog f@(VarId fName _t) args e) = 
-    ask <&> \(LiftEnv _ m) -> case Map.lookup fName m of
-        Just varList -> 
+    ask <&> \(LiftEnv _ _ m) -> case Map.lookup fName m of
+        Just (varList, prefix) -> 
             let t' = getLiftedFunType f varList in
-            Prog (Var' fName t') (varList ++ args) e
+            Prog (Var' (prefix ++ '_':fName) t') (varList ++ args) e
         Nothing -> p
 
 applySolutionToExpr :: Expr Identity -> LiftM (Expr Identity)
 applySolutionToExpr e@(Var f@(VarId fName _t)) = 
-    ask <&> \(LiftEnv _ m) -> case Map.lookup fName m of
-        Just varList -> 
+    ask <&> \(LiftEnv _ _ m) -> case Map.lookup fName m of
+        Just (varList, prefix) -> 
             let t' = getLiftedFunType f varList in
-            appFunVars (Var' fName t') varList
+            appFunVars (Var' (prefix ++ '_':fName) t') varList
         Nothing -> e
 applySolutionToExpr e = return e
 

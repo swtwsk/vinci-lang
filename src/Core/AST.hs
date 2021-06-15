@@ -70,8 +70,8 @@ instance EquableFunctor Identity where
     eqF (Identity x) (Identity y) = x == y
 
 instance (EquableFunctor f) => Eq (VarId f) where
-    (VarId name1 type1) == (VarId name2 type2) = 
-        name1 == name2 && eqF type1 type2
+    (VarId name1 _type1) == (VarId name2 _type2) = 
+        name1 == name2 -- && eqF type1 type2
 
 instance (EquableFunctor f) => Ord (VarId f) where
     (VarId name1 _type1) <= (VarId name2 _type2) = name1 <= name2
