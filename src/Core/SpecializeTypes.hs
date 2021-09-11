@@ -25,7 +25,7 @@ type TyVarRenameMap = Map.Map Tyvar Type
 data ReaderEnv = ReaderEnv { _tyVarMap     :: TyVarRenameMap
                            , _funs         :: Map.Map String Prog'
                            , _structDefMap :: StructDefMap Type }
-type SpecializedMap = Map.Map (String, [Type]) Prog'
+type SpecializedMap = Map.Map (String, [Type]) (Either (VarId Identity) Prog')
 type SpecializeM = ReaderT ReaderEnv (State SpecializedMap)
 
 specializeTypes :: CM.CoreManager Identity -> CM.CoreManager Identity
@@ -36,7 +36,7 @@ specializeTypes cm =
             fragProg <- mapM specializeProg' frag
             vertProg <- mapM specializeProg' vert
             return $ catMaybes [fragProg, vertProg]
-        mainsMap = Map.fromList $ (\p -> ((progId p, []), p)) <$> mains
+        mainsMap = Map.fromList $ (\p -> ((progId p, []), Right p)) <$> mains
     in cm { CM._progs = filterProgMap (mainsMap `Map.union` progsMap) }
     where
         run f      = runState (runReaderT f initialEnv) initialSt
@@ -56,7 +56,8 @@ specializeTypes cm =
 filterProgMap :: SpecializedMap -> [Prog']
 filterProgMap = (snd . snd) <=< (Map.toList . Map.foldlWithKey foldFn Map.empty)
     where
-        foldFn acc (fName, types) prog = 
+        foldFn acc _ (Left _) = acc
+        foldFn acc (fName, types) (Right prog) = 
             let typesLen = length types in
             case Map.lookup fName acc of
                 Nothing -> Map.insert fName (typesLen, [prog]) acc
@@ -73,12 +74,15 @@ specializeProg argTypes (Prog (VarId fName (Identity fType)) args e) = do
         progMapKey = (fName, Map.elems tyVarRenames)
     specializedProg <- gets $ Map.lookup progMapKey
     case specializedProg of
-        Just (Prog pId _ _) -> return (pId, fType')
+        Just (Right (Prog pId _ _)) -> return (pId, fType')
+        Just (Left pId) -> return (pId, fType')
         Nothing -> do
-            (e', _) <- local (\r -> r { _tyVarMap = tyVarRenames }) (specializeExpr e)
             let progVar = Var' (fName ++ suffix) fType'
-                prog' = Prog progVar (uncurry Var' <$> argPairs) e'
-            modify $ Map.insert progMapKey prog'
+            modify $ Map.insert progMapKey (Left progVar)
+            (e', _) <- 
+                local (\r -> r { _tyVarMap = tyVarRenames }) (specializeExpr e)
+            let prog' = Prog progVar (uncurry Var' <$> argPairs) e'
+            modify $ Map.insert progMapKey (Right prog')
             return (progVar, fType')
 
 specializeExpr :: Expr' -> SpecializeM (Expr', Type)
