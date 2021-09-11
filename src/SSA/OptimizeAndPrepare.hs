@@ -71,10 +71,12 @@ findLoop' l = do
     edge <- asks (! l)
     visited <- get
     let findLoopFn l' = if Set.member l' visited then return (Just l) else findLoop' l'
-    case edge of
+    res <- case edge of
         NoEdge -> return Nothing
         JumpEdge jl -> findLoopFn jl
         BranchEdge l1 l2 -> (<|>) <$> findLoopFn l1 <*> findLoopFn l2
+    modify (Set.delete l)
+    return res
 
 findLca :: SLabel -> SLabel -> Edges -> Maybe SLabel
 findLca l1 l2 edges = listToMaybe (Set.toList lcas)
