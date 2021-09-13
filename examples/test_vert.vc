@@ -1,0 +1,34 @@
+struct UniformBufferObject {
+    u_time : Float
+};;
+
+struct Uniforms {
+    @[binding = 0] ubo : UniformBufferObject
+};;
+
+struct VertIns {
+    @[location = 0] inPosition : Vec2,
+    @[location = 1] inColor : Vec3,
+    @[location = 2] inTexCoord : Vec2
+};;
+
+struct VertOuts {
+    @[location = 0] fragColor : Vec4,
+    @[location = 1] fragTexCoord : Vec2,
+    gl_Position : Vec4
+};;
+
+let pi = 3.1415926538;;
+
+let vert (u : Uniforms) (ins : VertIns) =
+  let (r, g, b) = ins.inColor in
+  let (x, y) = ins.inPosition in
+  let t = 1.0 + sin (u.ubo.u_time - pi / 2.0) in
+  let f1 x = x - t and f2 x = x + t in
+  let y2 = if y > 0.0 then f1 y else f2 y in
+  VertOuts {
+    gl_Position = (x, y2, 0.0, 1.0),
+    fragColor = (r, g, b, 1.0),
+    fragTexCoord = ins.inTexCoord
+  }
+;;

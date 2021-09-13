@@ -1,3 +1,0 @@
-let prototype r g b t =
-  ((r + t + 0.1) % 2.0, g, (b + t - 0.2) % 2.0)
-;;
