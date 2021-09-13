@@ -75,7 +75,6 @@ tiProgsRun env (p:t) = do
     return $ (typedProg, tProg):rest
 tiProgsRun _ [] = return []
 
--- TODO: HANDLE RECURSION!
 tiProg' :: Prog Maybe -> TCM (Prog Identity, TypeEnv, Subst, Qual Type)
 tiProg' (Prog (VarId fName maybeFType) args e) = do
     returnType <- case maybeFType of

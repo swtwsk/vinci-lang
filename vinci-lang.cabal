@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8791d9cd62abef404ef2e543c4d92716c164b77949683d5c10204eb53ccf56f3
+-- hash: 8611800d4581250ba0326ddc8b637ac08c20073728fdc038a18254aab4251b7b
 
 name:           vinci-lang
 version:        0.1.0.0
@@ -92,7 +92,6 @@ library
 executable vinci-lang-exe
   main-is: Main.hs
   other-modules:
-      SpirDemo
       Paths_vinci_lang
   hs-source-dirs:
       app

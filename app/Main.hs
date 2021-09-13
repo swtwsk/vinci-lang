@@ -21,7 +21,6 @@ import SSA.CPStoSSA (cpsToSSA)
 import SSA.OptimizeAndPrepare (optimizeAndPrepare)
 import SPIRV.SpirManager (spirToLines)
 import SPIRV.SSAtoSPIR (ssaToSpir)
-import SpirDemo (compileToDemoSpir, compileToDemo2Spir)
 
 type ParseFun a = [Token] -> Either String a
 type FileName   = String
@@ -53,7 +52,7 @@ usage = do
         ]
     exitFailure
 
-data OutputType = Frontend | Core | LiftedCore | TCCore | CPS | SSA | SPIRV | Demo2 | FullSPIRV
+data OutputType = Frontend | Core | TCCore | LiftedCore | CPS | SSA | SPIRV
 
 compilationFunction :: OutputType -> (F.Program -> String)
 compilationFunction outputType = case outputType of
@@ -72,14 +71,6 @@ typeCheckAndCompile outputType progs = case tiCoreManager progs of
               fst . cpsToSSA . coreToCPS . specializeTypes $ CM.map lambdaLiftProgs typeChecked
         SPIRV      -> unlines . spirToLines . ssaToSpir . first optimizeAndPrepare $ 
             cpsToSSA . coreToCPS . specializeTypes $ CM.map lambdaLiftProgs typeChecked
-        Demo2      ->
-            let spirManager = ssaToSpir . first optimizeAndPrepare $
-                    cpsToSSA . coreToCPS . specializeTypes $ CM.map lambdaLiftProgs typeChecked in
-            compileToDemo2Spir spirManager
-        FullSPIRV  ->
-            let spirManager = ssaToSpir . first optimizeAndPrepare $ 
-                     cpsToSSA . coreToCPS . specializeTypes $ CM.map lambdaLiftProgs typeChecked in
-            compileToDemoSpir spirManager
         _ -> "Error?"
 
 parseFile :: OutputType -> FileName -> IO ()
@@ -104,6 +95,4 @@ main = do
         "-t":fs    -> mapM_ (parseFile TCCore) fs
         "-k":fs    -> mapM_ (parseFile CPS) fs
         "-s":fs    -> mapM_ (parseFile SSA) fs
-        "-v":fs    -> mapM_ (parseFile SPIRV) fs
-        "-2":fs    -> mapM_ (parseFile Demo2) fs
-        fs         -> mapM_ (parseFile FullSPIRV) fs
+        fs         -> mapM_ (parseFile SPIRV) fs
