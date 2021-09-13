@@ -1,7 +1,8 @@
 name:                vinci-lang
 version:             0.1.0.0
 github:              "swtwsk/vinci-lang"
-license:             BSD3
+license:             MIT
+license-file:        LICENSE
 author:              "Andrzej Swatowski"
 maintainer:          ""
 copyright:           "2021 Andrzej Swatowski"

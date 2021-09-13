@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6be8b3399c0fd585103365b0a7ad73a2e202e698fd734eef273ee9a05b116c9e
+-- hash: 8791d9cd62abef404ef2e543c4d92716c164b77949683d5c10204eb53ccf56f3
 
 name:           vinci-lang
 version:        0.1.0.0
@@ -13,7 +13,7 @@ homepage:       https://github.com/swtwsk/vinci-lang#readme
 bug-reports:    https://github.com/swtwsk/vinci-lang/issues
 author:         Andrzej Swatowski
 copyright:      2021 Andrzej Swatowski
-license:        BSD3
+license:        MIT
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
