@@ -28,7 +28,7 @@ spirv-as --target-env vulkan1.1 examples/test_frag.spvasm -o examples/test_frag.
 
 ![Example of Vinci compiler usage](docs/example.gif)
 
-## Code example
+## Code examples
 **Vinci** is similar to other languages from ML family. In contrast to those languages, Vinci does not support algebraic data types or pattern matching due to performance concerns and limitations of GPU programming. On the other hand, apart from expressions typical for toy ML languages — e.g., arithmetic expressions, `let` bindings, or tuples — it also introduces C-like structures (similar to records from functional programming) and tuple destructuring syntax.
 
 Code examples of fragment and vertex shaders are to be found in the `examples` directory. The fragment shader example displays a moving checkerboard (shown in the GIF above), the vertex shader presented below flips the 2D object every moment:
@@ -51,6 +51,27 @@ let vert (u : Uniforms) (ins : VertIns) =
   }
 ;;
 ```
+
+Vinci does have a (limited) support for recursion in a form of tail recursion. For example, the code below uses recursive function to compute ceiled division in a very convoluted way:
+
+```ocaml
+let ceil_div x =
+  let rec x i =
+    if x < 0.2
+    then (if 1.0 < i then 1.0 else i)
+    else rec (x - 0.2) (i + 0.1)
+  in rec x 0.0
+;;
+
+let frag (_ : Uniforms) (ins : FragIns) =
+  let gray = ceil_div ins.fragColor.x in
+  FragOuts {
+    outColor = (gray, gray, gray, 1.0)
+  }
+;;
+```
+
+![Recursive shader example](docs/rec_shader.png)
 
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
